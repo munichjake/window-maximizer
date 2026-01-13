@@ -54,8 +54,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 4-column layout (needs >= 1200px typically)
-    if (maxCols >= 4) {
+    // 4-column layout (needs >= 1920px per acceptance criteria)
+    if (screenWidth >= 1920 && maxCols >= 4) {
         layouts.push({
             id: 'split-4',
             class: 'layout-cols-4',
@@ -70,8 +70,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 6-column layout (needs >= 1800px typically)
-    if (maxCols >= 6) {
+    // 6-column layout (needs >= 2560px per acceptance criteria)
+    if (screenWidth >= 2560 && maxCols >= 6) {
         layouts.push({
             id: 'split-6',
             class: 'layout-cols-6',
@@ -136,8 +136,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 4x2 grid (needs wide screen)
-    if (maxCols >= 4 && maxRows >= 2) {
+    // 4x2 grid (needs >= 1920px wide screen per consistency with 4-column threshold)
+    if (screenWidth >= 1920 && maxCols >= 4 && maxRows >= 2) {
         layouts.push({
             id: 'grid-4x2',
             class: 'layout-grid-4x2',
