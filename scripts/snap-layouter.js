@@ -477,13 +477,15 @@ export class SnapLayouter {
 
     /**
      * Restore all snapped windows to their original positions
+     * Re-opens closed windows if possible
      * Clears the registry after restore
-     * @returns {Object} Summary of restore operation
+     * @returns {Promise<Object>} Summary of restore operation
      */
-    restoreAll() {
+    async restoreAll() {
         const states = this.registry.getAllStatesArray();
         let restoredOpen = 0;
-        let closedWindows = 0;
+        let reopened = 0;
+        let skipped = 0;
 
         for (const state of states) {
             // Try to find the open application
@@ -496,9 +498,17 @@ export class SnapLayouter {
                 delete app._windowMaximizerState;
                 this.updateHeaderButton(app);
                 restoredOpen++;
+            } else if (!state.isOpen && state.documentInfo) {
+                // Window was closed - try to re-open it
+                const reopenedApp = await this.reopenDocument(state);
+                if (reopenedApp) {
+                    reopened++;
+                } else {
+                    skipped++;
+                }
             } else {
-                // Window was closed - count it (US-007 will handle re-opening)
-                closedWindows++;
+                // No document info or other case - skip
+                skipped++;
             }
         }
 
@@ -507,13 +517,49 @@ export class SnapLayouter {
 
         const summary = {
             restoredOpen,
-            closedWindows,
+            reopened,
+            skipped,
             total: states.length
         };
 
-        console.log(`Window Maximizer | Restore All: ${restoredOpen} open windows restored, ${closedWindows} closed windows`, summary);
+        console.log(`Window Maximizer | Restore All: ${restoredOpen} open restored, ${reopened} reopened, ${skipped} skipped`, summary);
 
         return summary;
+    }
+
+    /**
+     * Attempt to re-open a closed document and restore its position
+     * @param {Object} state - The saved window state
+     * @returns {Promise<Application|ApplicationV2|null>} The reopened application or null
+     */
+    async reopenDocument(state) {
+        if (!state.documentInfo || !state.documentInfo.uuid) {
+            console.log(`Window Maximizer | Cannot reopen ${state.appKey}: no document info`);
+            return null;
+        }
+
+        try {
+            // Fetch the document by UUID
+            const doc = await fromUuid(state.documentInfo.uuid);
+            if (!doc) {
+                console.log(`Window Maximizer | Document not found for ${state.documentInfo.uuid} (may have been deleted)`);
+                return null;
+            }
+
+            // Open the document's sheet with the original position
+            const sheet = await doc.sheet.render(true, {
+                left: state.originalPosition.left,
+                top: state.originalPosition.top,
+                width: state.originalPosition.width,
+                height: state.originalPosition.height
+            });
+
+            console.log(`Window Maximizer | Reopened ${state.documentInfo.documentName}: ${doc.name}`);
+            return sheet;
+        } catch (error) {
+            console.warn(`Window Maximizer | Failed to reopen document ${state.documentInfo.uuid}:`, error);
+            return null;
+        }
     }
 
     /**
