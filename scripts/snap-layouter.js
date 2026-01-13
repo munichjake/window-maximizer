@@ -156,8 +156,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 3-row layout (tall screens)
-    if (maxRows >= 3) {
+    // 3-row layout (tall screens >= 1080px per acceptance criteria)
+    if (screenHeight >= 1080 && maxRows >= 3) {
         layouts.push({
             id: 'rows-3',
             class: 'layout-rows-3',
@@ -171,8 +171,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 2x3 grid (tall screens)
-    if (maxCols >= 2 && maxRows >= 3) {
+    // 2x3 grid (tall screens >= 1080px per consistency with 3-row threshold)
+    if (screenHeight >= 1080 && maxCols >= 2 && maxRows >= 3) {
         layouts.push({
             id: 'grid-2x3',
             class: 'layout-grid-2x3',
@@ -185,6 +185,27 @@ function calculateAvailableLayouts() {
                 { id: 'r1c1', col: 1, row: 1 },
                 { id: 'r2c0', col: 0, row: 2 },
                 { id: 'r2c1', col: 1, row: 2 }
+            ]
+        });
+    }
+
+    // 3x3 grid (large screens: >= 900px wide for 3 cols, >= 1080px tall for 3 rows)
+    if (screenHeight >= 1080 && maxCols >= 3 && maxRows >= 3) {
+        layouts.push({
+            id: 'grid-3x3',
+            class: 'layout-grid-3x3',
+            cols: 3,
+            rows: 3,
+            zones: [
+                { id: 'r0c0', col: 0, row: 0 },
+                { id: 'r0c1', col: 1, row: 0 },
+                { id: 'r0c2', col: 2, row: 0 },
+                { id: 'r1c0', col: 0, row: 1 },
+                { id: 'r1c1', col: 1, row: 1 },
+                { id: 'r1c2', col: 2, row: 1 },
+                { id: 'r2c0', col: 0, row: 2 },
+                { id: 'r2c1', col: 1, row: 2 },
+                { id: 'r2c2', col: 2, row: 2 }
             ]
         });
     }
