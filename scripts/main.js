@@ -11,6 +11,33 @@ Hooks.once('ready', () => {
     console.log('Window Maximizer | Draggable Patched');
 });
 
+// Add Restore All button to scene controls
+Hooks.on('getSceneControlButtons', (controls) => {
+    // Find the token controls group (first group, always present)
+    const tokenControls = controls.find(c => c.name === 'token');
+    if (!tokenControls) return;
+
+    // Add our restore-all button as a tool in the token controls
+    tokenControls.tools.push({
+        name: 'window-maximizer-restore-all',
+        title: 'Restore All Windows',
+        icon: 'fas fa-window-restore',
+        button: true,
+        visible: true,
+        onClick: () => {
+            if (!layouter) return;
+
+            if (!layouter.hasSnappedWindows()) {
+                ui.notifications.info('No snapped windows to restore.');
+                return;
+            }
+
+            const summary = layouter.restoreAll();
+            ui.notifications.info(`Restored ${summary.restoredOpen} window(s) to original positions.`);
+        }
+    });
+});
+
 // Legacy Application (AppV1) header buttons hook
 Hooks.on('getApplicationHeaderButtons', (app, buttons) => {
     console.log('Window Maximizer | Adding button to AppV1', app.constructor.name);
