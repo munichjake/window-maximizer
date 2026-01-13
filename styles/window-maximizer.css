@@ -1,0 +1,96 @@
+/* Snap Overlay Container */
+#window-maximizer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 200px;
+    z-index: 99999;
+    pointer-events: none; /* Let clicks pass through unless on a zone */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 10px;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+#window-maximizer-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* The Layout Bar */
+#window-maximizer-bar {
+    background: rgba(40, 40, 40, 0.9);
+    border: 1px solid #666;
+    border-radius: 8px;
+    padding: 10px;
+    display: flex;
+    gap: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    backdrop-filter: blur(5px);
+}
+
+/* Layout Options (Miniatures) */
+.layout-option {
+    width: 80px;
+    height: 50px;
+    background: #333;
+    border: 1px solid #555;
+    border-radius: 4px;
+    position: relative;
+    cursor: pointer;
+    display: grid;
+    gap: 2px;
+}
+
+.layout-option:hover {
+    border-color: #ff9900;
+    background: #444;
+}
+
+/* Individual Zones in the Miniature */
+.layout-zone {
+    background: #666;
+    border-radius: 2px;
+    transition: background 0.2s;
+}
+
+.layout-option:hover .layout-zone {
+    background: #888;
+}
+
+.layout-zone.active {
+    background: #ff9900;
+}
+
+/* Layout Specific Grids */
+.layout-split {
+    grid-template-columns: 1fr 1fr;
+}
+
+.layout-quarters {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.layout-thirds {
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.layout-full {
+    grid-template-columns: 1fr;
+}
+
+/* Highlighting the actual drop target on screen (optional, maybe just use the bar for now) */
+#window-maximizer-highlight {
+    position: fixed;
+    background: rgba(255, 153, 0, 0.1);
+    border: 2px solid #ff9900;
+    border-radius: 8px;
+    z-index: 99998;
+    pointer-events: none;
+    display: none;
+    transition: all 0.1s ease-out;
+}
