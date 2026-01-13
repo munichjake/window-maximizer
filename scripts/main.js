@@ -24,7 +24,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
         icon: 'fas fa-window-restore',
         button: true,
         visible: true,
-        onClick: () => {
+        onClick: async () => {
             if (!layouter) return;
 
             if (!layouter.hasSnappedWindows()) {
@@ -32,8 +32,22 @@ Hooks.on('getSceneControlButtons', (controls) => {
                 return;
             }
 
-            const summary = layouter.restoreAll();
-            ui.notifications.info(`Restored ${summary.restoredOpen} window(s) to original positions.`);
+            const summary = await layouter.restoreAll();
+
+            // Build notification message based on what happened
+            const parts = [];
+            if (summary.restoredOpen > 0) {
+                parts.push(`${summary.restoredOpen} window(s) restored`);
+            }
+            if (summary.reopened > 0) {
+                parts.push(`${summary.reopened} window(s) reopened`);
+            }
+            if (parts.length === 0 && summary.skipped > 0) {
+                ui.notifications.warn(`Could not restore ${summary.skipped} window(s) - documents may have been deleted.`);
+            } else {
+                const message = parts.join(', ') + '.';
+                ui.notifications.info(message);
+            }
         }
     });
 });
