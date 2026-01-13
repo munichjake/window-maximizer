@@ -1,3 +1,5 @@
+import { WindowStateRegistry } from './window-state-registry.js';
+
 // Minimum window size thresholds (in pixels)
 const MIN_ZONE_WIDTH = 300;
 const MIN_ZONE_HEIGHT = 200;
@@ -220,10 +222,34 @@ export class SnapLayouter {
         this.activeApp = null;
         this.activeZone = null;
         this.layouts = [];
+        /** @type {WindowStateRegistry} Global registry for snapped window states */
+        this.registry = new WindowStateRegistry();
         this.createOverlay();
 
         // Recalculate layouts on window resize
         window.addEventListener('resize', () => this.rebuildOverlay());
+
+        // Track window closes to update registry
+        this.setupCloseTracking();
+    }
+
+    /**
+     * Set up hooks to track when snapped windows are closed
+     */
+    setupCloseTracking() {
+        // AppV1 close hook
+        Hooks.on('closeApplication', (app, html) => {
+            if (this.registry.getState(app)) {
+                this.registry.markClosed(app);
+            }
+        });
+
+        // AppV2 close hook
+        Hooks.on('closeApplicationV2', (app, html) => {
+            if (this.registry.getState(app)) {
+                this.registry.markClosed(app);
+            }
+        });
     }
 
     createOverlay() {
@@ -330,7 +356,7 @@ export class SnapLayouter {
 
         const rect = this.calculateZoneRect(layoutId, zoneId);
         if (rect) {
-            this.snapApp(this.activeApp, rect);
+            this.snapApp(this.activeApp, rect, { layoutId, zoneId });
         }
         this.hide();
     }
@@ -392,15 +418,34 @@ export class SnapLayouter {
         return app.element instanceof HTMLElement ? app.element : app.element[0];
     }
 
-    snapApp(app, rect) {
-        // Save state if not already saved
+    /**
+     * Snap an application to a zone
+     * @param {Application|ApplicationV2} app - The application to snap
+     * @param {Object} rect - The target rectangle {x, y, w, h}
+     * @param {Object} [zoneInfo] - Zone info {layoutId, zoneId} for registry
+     */
+    snapApp(app, rect, zoneInfo = { layoutId: 'full', zoneId: 'full' }) {
+        // Get original position before snapping
+        const pos = app.position;
+        const originalPosition = {
+            left: pos.left,
+            top: pos.top,
+            width: pos.width,
+            height: pos.height
+        };
+
+        // Save state on the app itself (for quick access)
         if (!app._originalState) {
-            const pos = app.position;
             app._originalState = {
-                position: { ...pos },
+                position: { ...originalPosition },
                 width: pos.width,
                 height: pos.height
             };
+        }
+
+        // Register in the global registry (survives window closes)
+        if (!this.registry.getState(app)) {
+            this.registry.registerSnap(app, originalPosition, zoneInfo);
         }
 
         app.setPosition({
@@ -415,6 +460,10 @@ export class SnapLayouter {
         this.updateHeaderButton(app);
     }
 
+    /**
+     * Restore a single application to its original position
+     * @param {Application|ApplicationV2} app - The application to restore
+     */
     restoreApp(app) {
         if (app._originalState) {
             app.setPosition(app._originalState.position);
@@ -422,6 +471,95 @@ export class SnapLayouter {
             delete app._windowMaximizerState;
             this.updateHeaderButton(app);
         }
+        // Remove from global registry
+        this.registry.removeState(app);
+    }
+
+    /**
+     * Restore all snapped windows to their original positions
+     * Clears the registry after restore
+     * @returns {Object} Summary of restore operation
+     */
+    restoreAll() {
+        const states = this.registry.getAllStatesArray();
+        let restoredOpen = 0;
+        let closedWindows = 0;
+
+        for (const state of states) {
+            // Try to find the open application
+            const app = this.findOpenApplication(state.appKey);
+
+            if (app && state.isOpen) {
+                // Window is open - restore its position
+                app.setPosition(state.originalPosition);
+                delete app._originalState;
+                delete app._windowMaximizerState;
+                this.updateHeaderButton(app);
+                restoredOpen++;
+            } else {
+                // Window was closed - count it (US-007 will handle re-opening)
+                closedWindows++;
+            }
+        }
+
+        // Clear the registry
+        this.registry.clearAll();
+
+        const summary = {
+            restoredOpen,
+            closedWindows,
+            total: states.length
+        };
+
+        console.log(`Window Maximizer | Restore All: ${restoredOpen} open windows restored, ${closedWindows} closed windows`, summary);
+
+        return summary;
+    }
+
+    /**
+     * Find an open application by its registry key
+     * @param {string} appKey - The application key from the registry
+     * @returns {Application|ApplicationV2|null}
+     */
+    findOpenApplication(appKey) {
+        // Check all open applications
+        // ui.windows contains all AppV1 windows keyed by appId
+        if (ui.windows) {
+            for (const [id, app] of Object.entries(ui.windows)) {
+                const key = this.registry.getAppKey(app);
+                if (key === appKey) {
+                    return app;
+                }
+            }
+        }
+
+        // Check AppV2 windows via foundry.applications if available
+        if (foundry?.applications?.instances) {
+            for (const app of foundry.applications.instances.values()) {
+                const key = this.registry.getAppKey(app);
+                if (key === appKey) {
+                    return app;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if there are any snapped windows to restore
+     * @returns {boolean}
+     */
+    hasSnappedWindows() {
+        return this.registry.hasSnappedWindows();
+    }
+
+    /**
+     * Get the count of snapped windows
+     * @returns {number}
+     */
+    getSnappedCount() {
+        return this.registry.getSnappedCount();
     }
 
     updateHeaderButton(app) {
