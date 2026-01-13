@@ -21,6 +21,7 @@ function calculateAvailableLayouts() {
     // Always include full screen layout
     layouts.push({
         id: 'full',
+        label: 'Full Screen',
         class: 'layout-full',
         cols: 1,
         rows: 1,
@@ -31,6 +32,7 @@ function calculateAvailableLayouts() {
     if (maxCols >= 2) {
         layouts.push({
             id: 'split-2',
+            label: '2 Columns',
             class: 'layout-cols-2',
             cols: 2,
             rows: 1,
@@ -45,6 +47,7 @@ function calculateAvailableLayouts() {
     if (maxCols >= 3) {
         layouts.push({
             id: 'split-3',
+            label: '3 Columns',
             class: 'layout-cols-3',
             cols: 3,
             rows: 1,
@@ -60,6 +63,7 @@ function calculateAvailableLayouts() {
     if (screenWidth >= 1920 && maxCols >= 4) {
         layouts.push({
             id: 'split-4',
+            label: '4 Columns',
             class: 'layout-cols-4',
             cols: 4,
             rows: 1,
@@ -76,6 +80,7 @@ function calculateAvailableLayouts() {
     if (screenWidth >= 2560 && maxCols >= 6) {
         layouts.push({
             id: 'split-6',
+            label: '6 Columns',
             class: 'layout-cols-6',
             cols: 6,
             rows: 1,
@@ -94,6 +99,7 @@ function calculateAvailableLayouts() {
     if (maxRows >= 2) {
         layouts.push({
             id: 'rows-2',
+            label: '2 Rows',
             class: 'layout-rows-2',
             cols: 1,
             rows: 2,
@@ -108,6 +114,7 @@ function calculateAvailableLayouts() {
     if (maxCols >= 2 && maxRows >= 2) {
         layouts.push({
             id: 'grid-2x2',
+            label: '2×2 Grid',
             class: 'layout-grid-2x2',
             cols: 2,
             rows: 2,
@@ -124,6 +131,7 @@ function calculateAvailableLayouts() {
     if (maxCols >= 3 && maxRows >= 2) {
         layouts.push({
             id: 'grid-3x2',
+            label: '3×2 Grid',
             class: 'layout-grid-3x2',
             cols: 3,
             rows: 2,
@@ -142,6 +150,7 @@ function calculateAvailableLayouts() {
     if (screenWidth >= 1920 && maxCols >= 4 && maxRows >= 2) {
         layouts.push({
             id: 'grid-4x2',
+            label: '4×2 Grid',
             class: 'layout-grid-4x2',
             cols: 4,
             rows: 2,
@@ -162,6 +171,7 @@ function calculateAvailableLayouts() {
     if (screenHeight >= 1080 && maxRows >= 3) {
         layouts.push({
             id: 'rows-3',
+            label: '3 Rows',
             class: 'layout-rows-3',
             cols: 1,
             rows: 3,
@@ -177,6 +187,7 @@ function calculateAvailableLayouts() {
     if (screenHeight >= 1080 && maxCols >= 2 && maxRows >= 3) {
         layouts.push({
             id: 'grid-2x3',
+            label: '2×3 Grid',
             class: 'layout-grid-2x3',
             cols: 2,
             rows: 3,
@@ -195,6 +206,7 @@ function calculateAvailableLayouts() {
     if (screenHeight >= 1080 && maxCols >= 3 && maxRows >= 3) {
         layouts.push({
             id: 'grid-3x3',
+            label: '3×3 Grid',
             class: 'layout-grid-3x3',
             cols: 3,
             rows: 3,
@@ -287,6 +299,8 @@ export class SnapLayouter {
             const opt = document.createElement('div');
             opt.className = `layout-option ${layout.class}`;
             opt.dataset.layout = layout.id;
+            opt.dataset.layoutLabel = layout.label; // For CSS tooltip
+            opt.title = layout.label; // Native browser tooltip fallback
 
             // Set grid template based on cols/rows
             opt.style.gridTemplateColumns = `repeat(${layout.cols}, 1fr)`;
