@@ -1,33 +1,250 @@
+// Minimum window size thresholds (in pixels)
+const MIN_ZONE_WIDTH = 300;
+const MIN_ZONE_HEIGHT = 200;
+
+/**
+ * Calculate available layouts based on screen dimensions
+ * @returns {Array<{id: string, class: string, cols: number, rows: number, zones: Array<{id: string, col: number, row: number, colSpan?: number, rowSpan?: number}>}>}
+ */
+function calculateAvailableLayouts() {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+
+    // Calculate maximum columns and rows that fit with minimum zone sizes
+    const maxCols = Math.floor(screenWidth / MIN_ZONE_WIDTH);
+    const maxRows = Math.floor(screenHeight / MIN_ZONE_HEIGHT);
+
+    const layouts = [];
+
+    // Always include full screen layout
+    layouts.push({
+        id: 'full',
+        class: 'layout-full',
+        cols: 1,
+        rows: 1,
+        zones: [{ id: 'full', col: 0, row: 0 }]
+    });
+
+    // 2-column split (needs at least 2 columns)
+    if (maxCols >= 2) {
+        layouts.push({
+            id: 'split-2',
+            class: 'layout-cols-2',
+            cols: 2,
+            rows: 1,
+            zones: [
+                { id: 'left', col: 0, row: 0 },
+                { id: 'right', col: 1, row: 0 }
+            ]
+        });
+    }
+
+    // 3-column layout (needs at least 3 columns, typically >= 900px)
+    if (maxCols >= 3) {
+        layouts.push({
+            id: 'split-3',
+            class: 'layout-cols-3',
+            cols: 3,
+            rows: 1,
+            zones: [
+                { id: 'left', col: 0, row: 0 },
+                { id: 'center', col: 1, row: 0 },
+                { id: 'right', col: 2, row: 0 }
+            ]
+        });
+    }
+
+    // 4-column layout (needs >= 1200px typically)
+    if (maxCols >= 4) {
+        layouts.push({
+            id: 'split-4',
+            class: 'layout-cols-4',
+            cols: 4,
+            rows: 1,
+            zones: [
+                { id: 'col-0', col: 0, row: 0 },
+                { id: 'col-1', col: 1, row: 0 },
+                { id: 'col-2', col: 2, row: 0 },
+                { id: 'col-3', col: 3, row: 0 }
+            ]
+        });
+    }
+
+    // 6-column layout (needs >= 1800px typically)
+    if (maxCols >= 6) {
+        layouts.push({
+            id: 'split-6',
+            class: 'layout-cols-6',
+            cols: 6,
+            rows: 1,
+            zones: [
+                { id: 'col-0', col: 0, row: 0 },
+                { id: 'col-1', col: 1, row: 0 },
+                { id: 'col-2', col: 2, row: 0 },
+                { id: 'col-3', col: 3, row: 0 },
+                { id: 'col-4', col: 4, row: 0 },
+                { id: 'col-5', col: 5, row: 0 }
+            ]
+        });
+    }
+
+    // 2-row layout (vertical split)
+    if (maxRows >= 2) {
+        layouts.push({
+            id: 'rows-2',
+            class: 'layout-rows-2',
+            cols: 1,
+            rows: 2,
+            zones: [
+                { id: 'top', col: 0, row: 0 },
+                { id: 'bottom', col: 0, row: 1 }
+            ]
+        });
+    }
+
+    // 2x2 quarters
+    if (maxCols >= 2 && maxRows >= 2) {
+        layouts.push({
+            id: 'grid-2x2',
+            class: 'layout-grid-2x2',
+            cols: 2,
+            rows: 2,
+            zones: [
+                { id: 'tl', col: 0, row: 0 },
+                { id: 'tr', col: 1, row: 0 },
+                { id: 'bl', col: 0, row: 1 },
+                { id: 'br', col: 1, row: 1 }
+            ]
+        });
+    }
+
+    // 3x2 grid
+    if (maxCols >= 3 && maxRows >= 2) {
+        layouts.push({
+            id: 'grid-3x2',
+            class: 'layout-grid-3x2',
+            cols: 3,
+            rows: 2,
+            zones: [
+                { id: 'tl', col: 0, row: 0 },
+                { id: 'tc', col: 1, row: 0 },
+                { id: 'tr', col: 2, row: 0 },
+                { id: 'bl', col: 0, row: 1 },
+                { id: 'bc', col: 1, row: 1 },
+                { id: 'br', col: 2, row: 1 }
+            ]
+        });
+    }
+
+    // 4x2 grid (needs wide screen)
+    if (maxCols >= 4 && maxRows >= 2) {
+        layouts.push({
+            id: 'grid-4x2',
+            class: 'layout-grid-4x2',
+            cols: 4,
+            rows: 2,
+            zones: [
+                { id: 'r0c0', col: 0, row: 0 },
+                { id: 'r0c1', col: 1, row: 0 },
+                { id: 'r0c2', col: 2, row: 0 },
+                { id: 'r0c3', col: 3, row: 0 },
+                { id: 'r1c0', col: 0, row: 1 },
+                { id: 'r1c1', col: 1, row: 1 },
+                { id: 'r1c2', col: 2, row: 1 },
+                { id: 'r1c3', col: 3, row: 1 }
+            ]
+        });
+    }
+
+    // 3-row layout (tall screens)
+    if (maxRows >= 3) {
+        layouts.push({
+            id: 'rows-3',
+            class: 'layout-rows-3',
+            cols: 1,
+            rows: 3,
+            zones: [
+                { id: 'top', col: 0, row: 0 },
+                { id: 'middle', col: 0, row: 1 },
+                { id: 'bottom', col: 0, row: 2 }
+            ]
+        });
+    }
+
+    // 2x3 grid (tall screens)
+    if (maxCols >= 2 && maxRows >= 3) {
+        layouts.push({
+            id: 'grid-2x3',
+            class: 'layout-grid-2x3',
+            cols: 2,
+            rows: 3,
+            zones: [
+                { id: 'r0c0', col: 0, row: 0 },
+                { id: 'r0c1', col: 1, row: 0 },
+                { id: 'r1c0', col: 0, row: 1 },
+                { id: 'r1c1', col: 1, row: 1 },
+                { id: 'r2c0', col: 0, row: 2 },
+                { id: 'r2c1', col: 1, row: 2 }
+            ]
+        });
+    }
+
+    return layouts;
+}
+
 export class SnapLayouter {
     constructor() {
         this.overlay = null;
         this.highlight = null;
         this.activeApp = null;
         this.activeZone = null;
+        this.layouts = [];
         this.createOverlay();
+
+        // Recalculate layouts on window resize
+        window.addEventListener('resize', () => this.rebuildOverlay());
     }
 
     createOverlay() {
         // Create the main overlay container
         this.overlay = document.createElement('div');
         this.overlay.id = 'window-maximizer-overlay';
-        
+
         // Create the bar containing layout options
         const bar = document.createElement('div');
         bar.id = 'window-maximizer-bar';
-        
-        // Define layouts
-        const layouts = [
-            { id: 'full', class: 'layout-full', zones: [{ id: 'full', style: {} }] },
-            { id: 'split', class: 'layout-split', zones: [{ id: 'left', style: {} }, { id: 'right', style: {} }] },
-            { id: 'quarters', class: 'layout-quarters', zones: [{ id: 'tl', style: {} }, { id: 'tr', style: {} }, { id: 'bl', style: {} }, { id: 'br', style: {} }] }
-        ];
 
-        layouts.forEach(layout => {
+        this.overlay.appendChild(bar);
+        document.body.appendChild(this.overlay);
+
+        // Create highlight rect
+        this.highlight = document.createElement('div');
+        this.highlight.id = 'window-maximizer-highlight';
+        document.body.appendChild(this.highlight);
+
+        // Build the layout options
+        this.buildLayoutOptions();
+    }
+
+    /**
+     * Build layout option elements in the bar based on current screen size
+     */
+    buildLayoutOptions() {
+        const bar = this.overlay.querySelector('#window-maximizer-bar');
+        bar.innerHTML = '';
+
+        // Calculate available layouts for current screen
+        this.layouts = calculateAvailableLayouts();
+
+        this.layouts.forEach(layout => {
             const opt = document.createElement('div');
             opt.className = `layout-option ${layout.class}`;
             opt.dataset.layout = layout.id;
-            
+
+            // Set grid template based on cols/rows
+            opt.style.gridTemplateColumns = `repeat(${layout.cols}, 1fr)`;
+            opt.style.gridTemplateRows = `repeat(${layout.rows}, 1fr)`;
+
             layout.zones.forEach(zone => {
                 const z = document.createElement('div');
                 z.className = 'layout-zone';
@@ -38,17 +255,18 @@ export class SnapLayouter {
                 z.addEventListener('mouseup', (e) => this.onZoneDrop(e, layout.id, zone.id));
                 opt.appendChild(z);
             });
-            
+
             bar.appendChild(opt);
         });
 
-        this.overlay.appendChild(bar);
-        document.body.appendChild(this.overlay);
+        console.log(`Window Maximizer | Built ${this.layouts.length} layouts for ${window.innerWidth}x${window.innerHeight} screen`);
+    }
 
-        // Create highlight rect
-        this.highlight = document.createElement('div');
-        this.highlight.id = 'window-maximizer-highlight';
-        document.body.appendChild(this.highlight);
+    /**
+     * Rebuild the overlay when screen size changes
+     */
+    rebuildOverlay() {
+        this.buildLayoutOptions();
     }
 
     show(app) {
@@ -97,29 +315,36 @@ export class SnapLayouter {
     }
 
     calculateZoneRect(layoutId, zoneId) {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        
-        // Define margins or sidebar offsets if needed. For now full screen minus UI top?
-        const topOffset = 0; // document.getElementById("ui-top")?.offsetHeight || 0;
-        
-        // Simple logic
-        if (layoutId === 'full') {
-            return { x: 0, y: 0, w, h };
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+
+        // Find the layout definition
+        const layout = this.layouts.find(l => l.id === layoutId);
+        if (!layout) {
+            // Fallback for 'full' if layouts not initialized (e.g., called from maximize button)
+            if (layoutId === 'full') {
+                return { x: 0, y: 0, w: screenWidth, h: screenHeight };
+            }
+            return null;
         }
-        if (layoutId === 'split') {
-            if (zoneId === 'left') return { x: 0, y: 0, w: w/2, h };
-            if (zoneId === 'right') return { x: w/2, y: 0, w: w/2, h };
-        }
-        if (layoutId === 'quarters') {
-            const hw = w/2;
-            const hh = h/2;
-            if (zoneId === 'tl') return { x: 0, y: 0, w: hw, h: hh };
-            if (zoneId === 'tr') return { x: hw, y: 0, w: hw, h: hh };
-            if (zoneId === 'bl') return { x: 0, y: hh, w: hw, h: hh };
-            if (zoneId === 'br') return { x: hw, y: hh, w: hw, h: hh };
-        }
-        return null;
+
+        // Find the zone within the layout
+        const zone = layout.zones.find(z => z.id === zoneId);
+        if (!zone) return null;
+
+        // Calculate zone dimensions based on grid position
+        const colWidth = screenWidth / layout.cols;
+        const rowHeight = screenHeight / layout.rows;
+
+        const colSpan = zone.colSpan || 1;
+        const rowSpan = zone.rowSpan || 1;
+
+        return {
+            x: zone.col * colWidth,
+            y: zone.row * rowHeight,
+            w: colWidth * colSpan,
+            h: rowHeight * rowSpan
+        };
     }
 
     /**

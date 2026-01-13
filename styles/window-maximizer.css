@@ -27,7 +27,11 @@
     border-radius: 8px;
     padding: 10px;
     display: flex;
-    gap: 15px;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-width: 90vw;
+    max-height: 180px;
+    overflow-y: auto;
     box-shadow: 0 5px 15px rgba(0,0,0,0.5);
     backdrop-filter: blur(5px);
 }
@@ -65,22 +69,13 @@
     background: #ff9900;
 }
 
-/* Layout Specific Grids */
-.layout-split {
-    grid-template-columns: 1fr 1fr;
-}
+/* Layout Specific Grids - templates are now set dynamically via inline styles */
+/* Base grid setup is in .layout-option, inline styles define columns/rows */
 
-.layout-quarters {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-}
-
-.layout-thirds {
-    grid-template-columns: 1fr 1fr 1fr;
-}
-
+/* Legacy class support for any hardcoded layouts */
 .layout-full {
     grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
 }
 
 /* Highlighting the actual drop target on screen (optional, maybe just use the bar for now) */
