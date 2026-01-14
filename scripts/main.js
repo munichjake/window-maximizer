@@ -55,13 +55,16 @@ Hooks.on('getSceneControlButtons', (controls) => {
 // Legacy Application (AppV1) header buttons hook
 Hooks.on('getApplicationHeaderButtons', (app, buttons) => {
     console.log('Window Maximizer | Adding button to AppV1', app.constructor.name);
-    // Check if we already have it
-    if (buttons.some(b => b.label === "Maximize")) return;
+    // Check if we already have it (check both possible labels)
+    if (buttons.some(b => b.label === "Maximize" || b.label === "Restore")) return;
+
+    // Check if window is currently snapped
+    const isSnapped = !!app._windowMaximizerState;
 
     buttons.unshift({
-        label: "Maximize",
+        label: isSnapped ? "Restore" : "Maximize",
         class: "window-maximizer-btn",
-        icon: "fas fa-window-maximize",
+        icon: isSnapped ? "fas fa-window-restore" : "fas fa-window-maximize",
         onclick: (ev) => {
             if (app._windowMaximizerState) {
                 layouter.restoreApp(app);
@@ -78,9 +81,12 @@ Hooks.on('getHeaderControlsApplicationV2', (app, controls) => {
     // Check if we already have a maximize control
     if (controls.some(c => c.action === "windowMaximizerToggle")) return;
 
+    // Check if window is currently snapped
+    const isSnapped = !!app._windowMaximizerState;
+
     controls.push({
-        icon: "fas fa-window-maximize",
-        label: "Maximize",
+        icon: isSnapped ? "fas fa-window-restore" : "fas fa-window-maximize",
+        label: isSnapped ? "Restore" : "Maximize",
         action: "windowMaximizerToggle",
         visible: true,
         onClick: (event) => {

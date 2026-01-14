@@ -633,22 +633,48 @@ export class SnapLayouter {
         const el = this.getAppElement(app);
         if (!el) return;
 
-        // Try AppV1 button first (inline header button)
-        let btn = el.querySelector('.window-maximizer-btn i');
+        const isSnapped = !!app._windowMaximizerState;
+        const newIcon = isSnapped ? 'fa-window-restore' : 'fa-window-maximize';
+        const oldIcon = isSnapped ? 'fa-window-maximize' : 'fa-window-restore';
+        const newLabel = isSnapped ? 'Restore' : 'Maximize';
 
-        // If not found, try AppV2 structure (header controls dropdown)
-        if (!btn) {
-            // AppV2 uses data-action attribute on buttons in header controls
-            btn = el.querySelector('[data-action="windowMaximizerToggle"] i');
+        // Try AppV1 button first (inline header button)
+        const appV1Btn = el.querySelector('.window-maximizer-btn');
+        if (appV1Btn) {
+            // Update icon
+            const icon = appV1Btn.querySelector('i');
+            if (icon) {
+                icon.classList.remove(oldIcon);
+                icon.classList.add(newIcon);
+            }
+            // Update label text - AppV1 button structure: <a><i></i> Label</a>
+            // We need to preserve the icon and update the text node
+            const textNode = Array.from(appV1Btn.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+            if (textNode) {
+                textNode.textContent = ` ${newLabel}`;
+            }
+            return;
         }
 
-        if (btn) {
-            if (app._windowMaximizerState) {
-                btn.classList.remove('fa-window-maximize');
-                btn.classList.add('fa-window-restore');
+        // Try AppV2 structure (header controls)
+        const appV2Btn = el.querySelector('[data-action="windowMaximizerToggle"]');
+        if (appV2Btn) {
+            // Update icon
+            const icon = appV2Btn.querySelector('i');
+            if (icon) {
+                icon.classList.remove(oldIcon);
+                icon.classList.add(newIcon);
+            }
+            // Update label - AppV2 button structure varies, look for label element or text
+            const labelEl = appV2Btn.querySelector('.control-label, span');
+            if (labelEl) {
+                labelEl.textContent = newLabel;
             } else {
-                btn.classList.remove('fa-window-restore');
-                btn.classList.add('fa-window-maximize');
+                // Fallback: look for text node
+                const textNode = Array.from(appV2Btn.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+                if (textNode) {
+                    textNode.textContent = newLabel;
+                }
             }
         }
     }
