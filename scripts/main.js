@@ -76,8 +76,9 @@ Hooks.on('getApplicationHeaderButtons', (app, buttons) => {
 });
 
 // ApplicationV2 header controls hook (FoundryVTT v13+)
+// Note: This adds button to the dropdown menu. We also inject a visible button via renderApplicationV2.
 Hooks.on('getHeaderControlsApplicationV2', (app, controls) => {
-    console.log('Window Maximizer | Adding button to AppV2', app.constructor.name);
+    console.log('Window Maximizer | Adding button to AppV2 dropdown', app.constructor.name);
     // Check if we already have a maximize control
     if (controls.some(c => c.action === "windowMaximizerToggle")) return;
 
@@ -97,6 +98,60 @@ Hooks.on('getHeaderControlsApplicationV2', (app, controls) => {
             }
         }
     });
+});
+
+// ApplicationV2 render hook - inject visible button directly into header
+// This ensures the button is always visible, not hidden in dropdown
+Hooks.on('renderApplicationV2', (app, html, options) => {
+    // html is the jQuery wrapper or HTMLElement depending on version
+    const element = html instanceof HTMLElement ? html : html[0];
+    if (!element) return;
+
+    // Check if we already injected our button
+    if (element.querySelector('.window-maximizer-appv2-btn')) return;
+
+    // Find the header element - ApplicationV2 uses various structures
+    const header = element.querySelector('header, .window-header');
+    if (!header) return;
+
+    // Check if window is currently snapped
+    const isSnapped = !!app._windowMaximizerState;
+    const iconClass = isSnapped ? 'fa-window-restore' : 'fa-window-maximize';
+    const title = isSnapped ? 'Restore' : 'Maximize';
+
+    // Create the button
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'window-maximizer-appv2-btn header-control';
+    btn.title = title;
+    btn.setAttribute('data-action', 'windowMaximizerToggle');
+    btn.innerHTML = `<i class="fas ${iconClass}"></i>`;
+
+    btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (app._windowMaximizerState) {
+            layouter.restoreApp(app);
+        } else {
+            layouter.snapApp(app, layouter.calculateZoneRect('full', 'full'));
+        }
+    });
+
+    // Find the best place to insert - before close button if exists, otherwise at end of header
+    const closeBtn = header.querySelector('[data-action="close"], .close, .header-button.close');
+    if (closeBtn) {
+        closeBtn.parentElement.insertBefore(btn, closeBtn);
+    } else {
+        // Try to find the header controls/buttons container
+        const controlsContainer = header.querySelector('.header-controls, .window-controls, .buttons');
+        if (controlsContainer) {
+            controlsContainer.appendChild(btn);
+        } else {
+            header.appendChild(btn);
+        }
+    }
+
+    console.log('Window Maximizer | Injected visible button to AppV2 header', app.constructor.name);
 });
 
 function patchDraggable() {

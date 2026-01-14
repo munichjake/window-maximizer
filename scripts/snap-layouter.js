@@ -656,22 +656,35 @@ export class SnapLayouter {
             return;
         }
 
-        // Try AppV2 structure (header controls)
-        const appV2Btn = el.querySelector('[data-action="windowMaximizerToggle"]');
-        if (appV2Btn) {
+        // Try injected AppV2 visible button (our custom injection)
+        const appV2VisibleBtn = el.querySelector('.window-maximizer-appv2-btn');
+        if (appV2VisibleBtn) {
             // Update icon
-            const icon = appV2Btn.querySelector('i');
+            const icon = appV2VisibleBtn.querySelector('i');
+            if (icon) {
+                icon.classList.remove(oldIcon);
+                icon.classList.add(newIcon);
+            }
+            // Update title attribute
+            appV2VisibleBtn.title = newLabel;
+        }
+
+        // Also try AppV2 dropdown controls (may exist in addition to visible button)
+        const appV2DropdownBtn = el.querySelector('[data-action="windowMaximizerToggle"]:not(.window-maximizer-appv2-btn)');
+        if (appV2DropdownBtn) {
+            // Update icon
+            const icon = appV2DropdownBtn.querySelector('i');
             if (icon) {
                 icon.classList.remove(oldIcon);
                 icon.classList.add(newIcon);
             }
             // Update label - AppV2 button structure varies, look for label element or text
-            const labelEl = appV2Btn.querySelector('.control-label, span');
+            const labelEl = appV2DropdownBtn.querySelector('.control-label, span');
             if (labelEl) {
                 labelEl.textContent = newLabel;
             } else {
                 // Fallback: look for text node
-                const textNode = Array.from(appV2Btn.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+                const textNode = Array.from(appV2DropdownBtn.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
                 if (textNode) {
                     textNode.textContent = newLabel;
                 }
