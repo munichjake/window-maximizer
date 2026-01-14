@@ -216,33 +216,65 @@ function patchDraggable() {
 
 /**
  * Setup ApplicationV2 drag tracking via pointer events
- * ApplicationV2 in Foundry V13 may use a different drag system
- * This adds a fallback mechanism to detect when AppV2 windows are being dragged near the top
+ * ApplicationV2 in Foundry V13 uses a different drag system than AppV1
+ * This detects when AppV2 windows are being dragged near the top edge
  */
 function setupAppV2DragTracking() {
     let draggingAppV2 = null;
     let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    const DRAG_THRESHOLD = 5; // Minimum pixels to consider it a drag
 
     // Track pointer down on AppV2 headers to detect drag start
     document.addEventListener('pointerdown', (event) => {
+        // Only respond to primary button (left click)
+        if (event.button !== 0) return;
+
+        // Check if clicking on a header button/control - these should NOT trigger drag
+        // This prevents drag detection when clicking close, maximize, or other header controls
+        const isButton = event.target.closest('button, a, [data-action], .header-control, .header-button, .control, .close');
+        if (isButton) return;
+
         // Check if clicking on an AppV2 window header (drag handle)
-        const header = event.target.closest('.application.app-v2 header, .application-v2 header, .app-v2 .window-header');
+        // Foundry V13 ApplicationV2 structure: <div class="application app-v2"><header>...</header>...</div>
+        // Also check for variations in class naming
+        const header = event.target.closest('.application.app-v2 header, .app-v2 header, [data-appid] header');
         if (!header) return;
 
-        // Find the AppV2 application
-        const appElement = header.closest('.application');
+        // Find the AppV2 application element
+        const appElement = header.closest('.application, [data-appid]');
         if (!appElement) return;
 
-        // Find the actual app instance from Foundry's application instances
-        if (foundry?.applications?.instances) {
+        // Get app ID from the element's dataset or from Foundry's application instances
+        const appId = appElement.dataset?.appid;
+
+        // Find the actual app instance
+        let foundApp = null;
+
+        // Method 1: Look up by appId in foundry.applications.instances
+        if (appId && foundry?.applications?.instances) {
+            // The instances Map is keyed by appId (number)
+            foundApp = foundry.applications.instances.get(Number(appId));
+        }
+
+        // Method 2: If no appId, iterate through instances and match by element
+        if (!foundApp && foundry?.applications?.instances) {
             for (const app of foundry.applications.instances.values()) {
                 const appEl = app.element instanceof HTMLElement ? app.element : app.element?.[0];
                 if (appEl === appElement) {
-                    draggingAppV2 = app;
-                    isDragging = false; // Will be true once we detect actual movement
+                    foundApp = app;
                     break;
                 }
             }
+        }
+
+        if (foundApp) {
+            draggingAppV2 = foundApp;
+            isDragging = false;
+            startX = event.clientX;
+            startY = event.clientY;
+            console.log('Window Maximizer | AppV2 drag start detected:', foundApp.constructor.name);
         }
     }, true);
 
@@ -250,15 +282,25 @@ function setupAppV2DragTracking() {
     document.addEventListener('pointermove', (event) => {
         if (!draggingAppV2) return;
 
-        // Consider it a drag once we start moving
-        isDragging = true;
+        // Only consider it a drag after moving past the threshold
+        // This prevents accidental triggering on small mouse movements
+        if (!isDragging) {
+            const dx = Math.abs(event.clientX - startX);
+            const dy = Math.abs(event.clientY - startY);
+            if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+                isDragging = true;
+            } else {
+                return;
+            }
+        }
 
-        // Check distance to top
+        // Check distance to top edge of viewport
         if (event.clientY < 10) {
             if (!layouter.activeApp) {
                 layouter.show(draggingAppV2);
             }
         } else if (layouter.activeApp) {
+            // Hide overlay when mouse moves below the overlay area
             const overlayHeight = 250;
             if (event.clientY > overlayHeight) {
                 layouter.hide();
