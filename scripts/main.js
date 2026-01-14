@@ -113,11 +113,11 @@ function patchDraggable() {
             if (!layouter.activeApp) {
                 layouter.show(this.app);
             }
-        } else if (event.clientY > 150) {
-            // If we pulled away far enough, hide it
-            // verify we aren't hovering the overlay
-            // Actually, the overlay mouseleave handles this usually, but purely by coord:
-            if (layouter.activeApp && !layouter.activeZone) {
+        } else if (layouter.activeApp) {
+            // Hide overlay when mouse moves below the overlay area (250px)
+            // This provides a responsive auto-hide experience
+            const overlayHeight = 250; // Match CSS #window-maximizer-overlay height
+            if (event.clientY > overlayHeight) {
                 layouter.hide();
             }
         }

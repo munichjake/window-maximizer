@@ -276,6 +276,13 @@ export class SnapLayouter {
         this.overlay.appendChild(bar);
         document.body.appendChild(this.overlay);
 
+        // Hide overlay when mouse leaves the overlay area
+        this.overlay.addEventListener('mouseleave', () => {
+            if (this.activeApp) {
+                this.hide();
+            }
+        });
+
         // Create highlight rect
         this.highlight = document.createElement('div');
         this.highlight.id = 'window-maximizer-highlight';
