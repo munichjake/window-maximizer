@@ -6,9 +6,12 @@ Hooks.once('ready', () => {
     console.log('Window Maximizer | Ready Hook Fired');
     layouter = new SnapLayouter();
 
-    // Patch Draggable
+    // Patch Draggable for AppV1 windows
     patchDraggable();
     console.log('Window Maximizer | Draggable Patched');
+
+    // Setup AppV2 drag tracking as a fallback/supplement
+    setupAppV2DragTracking();
 });
 
 // Add Restore All button to scene controls
@@ -166,13 +169,16 @@ function patchDraggable() {
         // Call original first to move the window
         originalMouseMove.call(this, event);
 
-        // Check if we are dragging an Application
-        if (!this.app) return;
+        // Get the application being dragged
+        // ApplicationV1 uses this.app, ApplicationV2 might also use this.app
+        // In V13, Draggable constructor accepts both Application and ApplicationV2
+        const app = this.app;
+        if (!app) return;
 
         // Check distance to top
         if (event.clientY < 10) {
             if (!layouter.activeApp) {
-                layouter.show(this.app);
+                layouter.show(app);
             }
         } else if (layouter.activeApp) {
             // Hide overlay when mouse moves below the overlay area (250px)
@@ -185,7 +191,7 @@ function patchDraggable() {
     };
 
     Draggable.prototype._onDragMouseUp = function (event) {
-        // If we are over a zone, the zone mouseup handles it usually? 
+        // If we are over a zone, the zone mouseup handles it usually?
         // But the Draggable might capture the event first or stop propagation.
 
         // If layouter is active and has a zone, we want that to win.
@@ -194,7 +200,7 @@ function patchDraggable() {
             // But if Draggable is on window, it captures globally.
 
             // Let's manually trigger logic if we are "in"
-            // Actually, since the overlay has pointer-events: auto when active, 
+            // Actually, since the overlay has pointer-events: auto when active,
             // and z-index 99999, it *should* receive the mouseup first if we are over it.
             // So we might not need to do anything here except standard cleanup.
         }
@@ -206,4 +212,80 @@ function patchDraggable() {
             layouter.hide();
         }
     };
+}
+
+/**
+ * Setup ApplicationV2 drag tracking via pointer events
+ * ApplicationV2 in Foundry V13 may use a different drag system
+ * This adds a fallback mechanism to detect when AppV2 windows are being dragged near the top
+ */
+function setupAppV2DragTracking() {
+    let draggingAppV2 = null;
+    let isDragging = false;
+
+    // Track pointer down on AppV2 headers to detect drag start
+    document.addEventListener('pointerdown', (event) => {
+        // Check if clicking on an AppV2 window header (drag handle)
+        const header = event.target.closest('.application.app-v2 header, .application-v2 header, .app-v2 .window-header');
+        if (!header) return;
+
+        // Find the AppV2 application
+        const appElement = header.closest('.application');
+        if (!appElement) return;
+
+        // Find the actual app instance from Foundry's application instances
+        if (foundry?.applications?.instances) {
+            for (const app of foundry.applications.instances.values()) {
+                const appEl = app.element instanceof HTMLElement ? app.element : app.element?.[0];
+                if (appEl === appElement) {
+                    draggingAppV2 = app;
+                    isDragging = false; // Will be true once we detect actual movement
+                    break;
+                }
+            }
+        }
+    }, true);
+
+    // Track pointer movement to detect drag near top edge
+    document.addEventListener('pointermove', (event) => {
+        if (!draggingAppV2) return;
+
+        // Consider it a drag once we start moving
+        isDragging = true;
+
+        // Check distance to top
+        if (event.clientY < 10) {
+            if (!layouter.activeApp) {
+                layouter.show(draggingAppV2);
+            }
+        } else if (layouter.activeApp) {
+            const overlayHeight = 250;
+            if (event.clientY > overlayHeight) {
+                layouter.hide();
+            }
+        }
+    }, true);
+
+    // Track pointer up to end drag
+    document.addEventListener('pointerup', (event) => {
+        if (draggingAppV2) {
+            // Ensure overlay is hidden if we didn't select a zone
+            if (layouter.activeApp && !layouter.activeZone) {
+                layouter.hide();
+            }
+            draggingAppV2 = null;
+            isDragging = false;
+        }
+    }, true);
+
+    // Also clean up on pointer cancel
+    document.addEventListener('pointercancel', () => {
+        if (draggingAppV2) {
+            layouter.hide();
+            draggingAppV2 = null;
+            isDragging = false;
+        }
+    }, true);
+
+    console.log('Window Maximizer | AppV2 drag tracking setup complete');
 }
