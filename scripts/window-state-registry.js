@@ -3,6 +3,23 @@
  * Stores original positions of snapped windows keyed by application ID.
  * Survives individual window closes to enable restore-all functionality.
  */
+
+// Debug logging system - conditional console logging for performance
+// Uses FoundryVTT game setting for runtime configurability
+function debugLog(...args) {
+    // Safety check: ensure game and settings are available
+    if (!game?.settings) return;
+
+    try {
+        if (game.settings.get('window-maximizer', 'debugMode')) {
+            console.log('Window Maximizer |', ...args);
+        }
+    } catch (error) {
+        // If setting doesn't exist yet, silently ignore (module initialization phase)
+        // This prevents errors during module load before settings are registered
+    }
+}
+
 export class WindowStateRegistry {
     constructor() {
         /** @type {Map<string, WindowState>} */
@@ -60,7 +77,7 @@ export class WindowStateRegistry {
         };
 
         this.states.set(key, state);
-        console.log(`Window Maximizer | Registered snap state for ${key}`, state);
+        debugLog(`Registered snap state for ${key}`, state);
     }
 
     /**
@@ -91,7 +108,7 @@ export class WindowStateRegistry {
         const state = this.states.get(key);
         if (state) {
             state.isOpen = false;
-            console.log(`Window Maximizer | Marked ${key} as closed`);
+            debugLog(`Marked ${key} as closed`);
         }
     }
 
@@ -114,7 +131,7 @@ export class WindowStateRegistry {
     removeState(app) {
         const key = this.getAppKey(app);
         this.states.delete(key);
-        console.log(`Window Maximizer | Removed snap state for ${key}`);
+        debugLog(`Removed snap state for ${key}`);
     }
 
     /**
@@ -187,7 +204,7 @@ export class WindowStateRegistry {
     clearAll() {
         const count = this.states.size;
         this.states.clear();
-        console.log(`Window Maximizer | Cleared ${count} snap states`);
+        debugLog(`Cleared ${count} snap states`);
     }
 }
 

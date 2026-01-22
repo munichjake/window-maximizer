@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Window Maximizer - Unit Tests</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #f0f3ff;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .results-header h2 {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .summary {
+            display: flex;
+            gap: 30px;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-item .label {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .summary-item .value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .summary-item.passed .value {
+            color: #10b981;
+        }
+
+        .summary-item.failed .value {
+            color: #ef4444;
+        }
+
+        .test-suite {
+            margin-bottom: 30px;
+        }
+
+        .test-suite:last-child {
+            margin-bottom: 0;
+        }
+
+        .test-suite-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .test-suite-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 2px;
+        }
+
+        .test-item {
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+        }
+
+        .test-item.pass {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .test-item.fail {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .test-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .test-item.pass .test-icon {
+            background: #10b981;
+            color: white;
+        }
+
+        .test-item.fail .test-icon {
+            background: #ef4444;
+            color: white;
+        }
+
+        .test-message {
+            flex: 1;
+        }
+
+        .error-details {
+            margin-top: 8px;
+            padding: 12px;
+            background: #fef2f2;
+            border-left: 3px solid #ef4444;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #dc2626;
+            border-radius: 4px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Window Maximizer Unit Tests</h1>
+            <p>Test framework for WindowStateRegistry and Layout calculations. Run tests to verify core functionality.</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" id="runAllBtn" onclick="runAllTests()">
+                <span>Run All Tests</span>
+            </button>
+            <button class="btn btn-secondary" id="runRegistryBtn" onclick="runRegistryTests()">
+                Registry Tests
+            </button>
+            <button class="btn btn-secondary" id="runLayoutBtn" onclick="runLayoutTests()">
+                Layout Tests
+            </button>
+            <button class="btn btn-secondary" id="runIntegrationBtn" onclick="runIntegrationTests()">
+                Integration Tests
+            </button>
+            <button class="btn btn-secondary" onclick="clearResults()">
+                Clear Results
+            </button>
+        </div>
+
+        <div class="results">
+            <div class="results-header">
+                <h2>Test Results</h2>
+                <div class="summary" id="summary">
+                    <div class="summary-item passed">
+                        <div class="label">Passed</div>
+                        <div class="value" id="passedCount">-</div>
+                    </div>
+                    <div class="summary-item failed">
+                        <div class="label">Failed</div>
+                        <div class="value" id="failedCount">-</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Total</div>
+                        <div class="value" id="totalCount">-</div>
+                    </div>
+                </div>
+            </div>
+            <div id="testResults">
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                    </svg>
+                    <p>No tests run yet. Click "Run All Tests" to begin.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="window-maximizer.test.js"></script>
+    <script>
+        let isRunning = false;
+
+        function setRunning(running) {
+            isRunning = running;
+            document.getElementById('runAllBtn').disabled = running;
+            document.getElementById('runRegistryBtn').disabled = running;
+            document.getElementById('runLayoutBtn').disabled = running;
+            document.getElementById('runIntegrationBtn').disabled = running;
+
+            const runAllBtn = document.getElementById('runAllBtn');
+            if (running) {
+                runAllBtn.innerHTML = '<div class="spinner"></div><span>Running...</span>';
+            } else {
+                runAllBtn.innerHTML = '<span>Run All Tests</span>';
+            }
+        }
+
+        function updateSummary(passed, failed, total) {
+            document.getElementById('passedCount').textContent = passed;
+            document.getElementById('failedCount').textContent = failed;
+            document.getElementById('totalCount').textContent = total;
+        }
+
+        function createTestItem(name, passed, error = null) {
+            const div = document.createElement('div');
+            div.className = `test-item ${passed ? 'pass' : 'fail'}`;
+
+            const icon = document.createElement('div');
+            icon.className = 'test-icon';
+            icon.textContent = passed ? '✓' : '✗';
+
+            const message = document.createElement('div');
+            message.className = 'test-message';
+            message.textContent = name;
+
+            div.appendChild(icon);
+            div.appendChild(message);
+
+            if (error && error.message) {
+                const errorDetails = document.createElement('div');
+                errorDetails.className = 'error-details';
+                errorDetails.textContent = error.message;
+                div.appendChild(errorDetails);
+            }
+
+            return div;
+        }
+
+        function createTestSuite(title, results) {
+            const suite = document.createElement('div');
+            suite.className = 'test-suite';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'test-suite-title';
+            titleEl.textContent = title;
+            suite.appendChild(titleEl);
+
+            if (results && results.errors) {
+                // Group tests by suite
+                const suiteTests = [];
+                const passedTests = results.passed;
+                const failedTests = results.errors;
+
+                // Create test items for passed tests (without names, just count)
+                for (let i = 0; i < results.passed; i++) {
+                    const item = createTestItem(`Test ${i + 1}`, true);
+                    suiteTests.push(item);
+                }
+
+                // Create test items for failed tests
+                failedTests.forEach(err => {
+                    const item = createTestItem(err.name || 'Unknown test', false, err.error);
+                    suiteTests.push(item);
+                });
+
+                suiteTests.forEach(item => suite.appendChild(item));
+            }
+
+            return suite;
+        }
+
+        function clearResults() {
+            document.getElementById('testResults').innerHTML = `
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                    </svg>
+                    <p>No tests run yet. Click "Run All Tests" to begin.</p>
+                </div>
+            `;
+            updateSummary('-', '-', '-');
+        }
+
+        async function runAllTests() {
+            if (isRunning) return;
+            setRunning(true);
+
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '<p style="text-align: center; padding: 40px; color: #999;">Running tests...</p>';
+
+            try {
+                const results = await window.windowMaximizerTests.runAllTests();
+
+                // Clear and build results
+                resultsDiv.innerHTML = '';
+
+                // Registry tests
+                if (results.registry) {
+                    const suite = createTestSuite('WindowStateRegistry', results.registry);
+                    resultsDiv.appendChild(suite);
+                }
+
+                // Layout tests
+                if (results.layout) {
+                    const suite = createTestSuite('Layout Calculations', results.layout);
+                    resultsDiv.appendChild(suite);
+                }
+
+                // Integration tests
+                if (results.integration) {
+                    const suite = createTestSuite('Integration Tests', results.integration);
+                    resultsDiv.appendChild(suite);
+                }
+
+                // Update summary
+                const total = results.total.passed + results.total.failed;
+                updateSummary(results.total.passed, results.total.failed, total);
+
+                // Add success/fail badge at top
+                const resultsHeader = document.querySelector('.results-header h2');
+                if (results.total.failed === 0) {
+                    resultsHeader.innerHTML = '<span class="badge badge-success">All Tests Passed</span>';
+                } else {
+                    resultsHeader.innerHTML = `<span class="badge badge-error">${results.total.failed} Test(s) Failed</span>`;
+                }
+
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #ef4444;">
+                        <h3>Error Running Tests</h3>
+                        <p style="font-family: monospace; margin-top: 20px;">${error.message}</p>
+                    </div>
+                `;
+            }
+
+            setRunning(false);
+        }
+
+        async function runRegistryTests() {
+            if (isRunning) return;
+            setRunning(true);
+
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '<p style="text-align: center; padding: 40px; color: #999;">Running Registry tests...</p>';
+
+            try {
+                const results = await window.windowMaximizerTests.runRegistryTests();
+                displayResults('WindowStateRegistry Tests', results);
+            } catch (error) {
+                showError(error);
+            }
+
+            setRunning(false);
+        }
+
+        async function runLayoutTests() {
+            if (isRunning) return;
+            setRunning(true);
+
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '<p style="text-align: center; padding: 40px; color: #999;">Running Layout tests...</p>';
+
+            try {
+                const results = await window.windowMaximizerTests.runLayoutTests();
+                displayResults('Layout Calculations Tests', results);
+            } catch (error) {
+                showError(error);
+            }
+
+            setRunning(false);
+        }
+
+        async function runIntegrationTests() {
+            if (isRunning) return;
+            setRunning(true);
+
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '<p style="text-align: center; padding: 40px; color: #999;">Running Integration tests...</p>';
+
+            try {
+                const results = await window.windowMaximizerTests.runIntegrationTests();
+                displayResults('Integration Tests', results);
+            } catch (error) {
+                showError(error);
+            }
+
+            setRunning(false);
+        }
+
+        function displayResults(title, results) {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = '';
+
+            const suite = createTestSuite(title, results);
+            resultsDiv.appendChild(suite);
+
+            const total = results.passed + results.failed;
+            updateSummary(results.passed, results.failed, total);
+
+            const resultsHeader = document.querySelector('.results-header h2');
+            if (results.failed === 0) {
+                resultsHeader.innerHTML = '<span class="badge badge-success">All Tests Passed</span>';
+            } else {
+                resultsHeader.innerHTML = `<span class="badge badge-error">${results.failed} Test(s) Failed</span>`;
+            }
+        }
+
+        function showError(error) {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #ef4444;">
+                    <h3>Error Running Tests</h3>
+                    <p style="font-family: monospace; margin-top: 20px;">${error.message}</p>
+                </div>
+            `;
+            setRunning(false);
+        }
+
+        // Auto-load indication
+        console.log('%cWindow Maximizer Test Runner loaded', 'color: #667eea; font-weight: bold; font-size: 16px;');
+        console.log('Tests ready. Click a button to run tests.');
+    </script>
+</body>
+</html>
