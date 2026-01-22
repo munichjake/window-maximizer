@@ -628,8 +628,7 @@ export class SnapLayouter {
         }, true); // Use capture phase
 
         this.addTrackedListener(bar, 'mouseleave', (e) => {
-            const zoneInfo = getZoneInfo(e.target);
-            if (zoneInfo) this.deactivateZone();
+            this.deactivateZone(); // Always deactivate when leaving the bar
         }, true);
 
         this.addTrackedListener(bar, 'mouseup', (e) => {
@@ -644,8 +643,7 @@ export class SnapLayouter {
         }, true);
 
         this.addTrackedListener(bar, 'pointerleave', (e) => {
-            const zoneInfo = getZoneInfo(e.target);
-            if (zoneInfo) this.deactivateZone();
+            this.deactivateZone(); // Always deactivate when leaving the bar
         }, true);
 
         this.addTrackedListener(bar, 'pointerup', (e) => {
@@ -713,8 +711,7 @@ export class SnapLayouter {
 
     hide() {
         this.overlay.classList.remove('active');
-        this.highlight.style.display = 'none';
-        this.activeZone = null;
+        this.deactivateZone(); // Use centralized method to clear zone state and minimap highlights
         this.activeApp = null;
     }
 
@@ -730,14 +727,46 @@ export class SnapLayouter {
             this.highlight.style.width = rect.w + 'px';
             this.highlight.style.height = rect.h + 'px';
         }
+
+        // Highlight the zone in the minimap
+        this.highlightZoneInMinimap(layoutId, zoneId);
     }
 
+    /**
+     * Highlight a zone in the minimap layout bar
+     * Adds visual feedback when hovering over zones
+     * @param {string} layoutId - The layout identifier
+     * @param {string} zoneId - The zone identifier within the layout
+     */
+    highlightZoneInMinimap(layoutId, zoneId) {
+        // Remove active class from all zones first
+        const allZones = this.overlay.querySelectorAll('.layout-zone');
+        allZones.forEach(zone => zone.classList.remove('active'));
+
+        // Add active class to the specific zone
+        const layoutOption = this.overlay.querySelector(`.layout-option[data-layout="${layoutId}"]`);
+        if (layoutOption) {
+            const zone = layoutOption.querySelector(`.layout-zone[data-zone="${zoneId}"]`);
+            if (zone) {
+                zone.classList.add('active');
+            }
+        }
+    }
+
+    /**
+     * Deactivate the currently active zone
+     * Clears both the highlight overlay and minimap highlighting
+     */
     deactivateZone() {
-        // Don't clear immediately to avoid flickering when moving between zones close together?
-        // Actually, logic is simpler if we just let the next enter event handle it, 
-        // but for now let's clear if we leave the zone completely.
-        // this.activeZone = null;
-        // this.highlight.style.display = 'none';
+        // Clear active zone state
+        this.activeZone = null;
+
+        // Hide the highlight overlay
+        this.highlight.style.display = 'none';
+
+        // Remove active class from all zones in minimap
+        const allZones = this.overlay.querySelectorAll('.layout-zone');
+        allZones.forEach(zone => zone.classList.remove('active'));
     }
 
     onZoneDrop(event, layoutId, zoneId) {

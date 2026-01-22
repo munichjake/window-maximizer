@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(findstr:*)",
+      "Skill(delegated-coding)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(wc:*)",
+      "Bash(node:*)",
+      "Bash(echo:*)",
+      "Bash(git show:*)"
+    ]
+  }
+}

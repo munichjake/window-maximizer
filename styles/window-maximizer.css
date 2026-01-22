@@ -31,31 +31,13 @@
     justify-content: center;
     gap: 12px;
     max-width: 95vw;
-    max-height: 230px;
-    overflow-y: auto;
-    overflow-x: hidden;
+    max-height: none;
+    overflow: visible;
     box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     backdrop-filter: blur(8px);
 }
 
-/* Custom scrollbar for the bar */
-#window-maximizer-bar::-webkit-scrollbar {
-    width: 6px;
-}
-
-#window-maximizer-bar::-webkit-scrollbar-track {
-    background: rgba(0,0,0,0.2);
-    border-radius: 3px;
-}
-
-#window-maximizer-bar::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.2);
-    border-radius: 3px;
-}
-
-#window-maximizer-bar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255,255,255,0.3);
-}
+/* Custom scrollbar styles removed - bar no longer has overflow/scrolling */
 
 /* Layout Options (Miniatures) */
 .layout-option {
@@ -117,6 +99,9 @@
 
 .layout-zone.active {
     background: #ff9900;
+    transform: scale(1.02);
+    box-shadow: 0 0 8px rgba(255, 153, 0, 0.6);
+    border: 1px solid #ffcc00;
 }
 
 /* Layout Specific Grids - templates are now set dynamically via inline styles */

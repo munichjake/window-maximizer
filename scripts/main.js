@@ -658,8 +658,7 @@ function setupAppV2DragTracking() {
                 } else {
                     // Not over a zone, deactivate highlight
                     if (layouter.activeZone) {
-                        layouter.activeZone = null;
-                        layouter.highlight.style.display = 'none';
+                        layouter.deactivateZone();
                     }
                 }
             }
