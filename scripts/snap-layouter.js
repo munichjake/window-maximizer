@@ -183,8 +183,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 3-column layout (needs at least 3 columns, typically >= 900px)
-    if (maxCols >= 3) {
+    // 3-column layout (needs larger screens for optimal usability)
+    if (screenWidth >= 1400 && maxCols >= 3) {
         layouts.push({
             id: 'split-3',
             label: '3 Columns',
@@ -199,8 +199,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 4-column layout (needs >= 1920px per acceptance criteria)
-    if (screenWidth >= 1920 && maxCols >= 4) {
+    // 4-column layout (requires ultrawide screens for practical use)
+    if (screenWidth >= 2560 && maxCols >= 4) {
         layouts.push({
             id: 'split-4',
             label: '4 Columns',
@@ -216,8 +216,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 6-column layout (needs >= 2560px per acceptance criteria)
-    if (screenWidth >= 2560 && maxCols >= 6) {
+    // 6-column layout (reserved for extreme ultrawide configurations)
+    if (screenWidth >= 3840 && maxCols >= 6) {
         layouts.push({
             id: 'split-6',
             label: '6 Columns',
@@ -267,27 +267,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 3x2 grid
-    if (maxCols >= 3 && maxRows >= 2) {
-        layouts.push({
-            id: 'grid-3x2',
-            label: '3×2 Grid',
-            class: 'layout-grid-3x2',
-            cols: 3,
-            rows: 2,
-            zones: [
-                { id: 'tl', col: 0, row: 0 },
-                { id: 'tc', col: 1, row: 0 },
-                { id: 'tr', col: 2, row: 0 },
-                { id: 'bl', col: 0, row: 1 },
-                { id: 'bc', col: 1, row: 1 },
-                { id: 'br', col: 2, row: 1 }
-            ]
-        });
-    }
-
-    // 4x2 grid (needs >= 1920px wide screen per consistency with 4-column threshold)
-    if (screenWidth >= 1920 && maxCols >= 4 && maxRows >= 2) {
+    // 4x2 grid (requires 4K displays for practical column widths)
+    if (screenWidth >= 3200 && maxCols >= 4 && maxRows >= 2) {
         layouts.push({
             id: 'grid-4x2',
             label: '4×2 Grid',
@@ -307,8 +288,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 3-row layout (tall screens >= 1080px per acceptance criteria)
-    if (screenHeight >= 1080 && maxRows >= 3) {
+    // 3-row layout (optimized for extra-tall displays)
+    if (screenHeight >= 1400 && maxRows >= 3) {
         layouts.push({
             id: 'rows-3',
             label: '3 Rows',
@@ -323,8 +304,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 2x3 grid (tall screens >= 1080px per consistency with 3-row threshold)
-    if (screenHeight >= 1080 && maxCols >= 2 && maxRows >= 3) {
+    // 2x3 grid (requires extra-tall displays for usability)
+    if (screenHeight >= 1400 && maxCols >= 2 && maxRows >= 3) {
         layouts.push({
             id: 'grid-2x3',
             label: '2×3 Grid',
@@ -342,8 +323,8 @@ function calculateAvailableLayouts() {
         });
     }
 
-    // 3x3 grid (large screens: >= 900px wide for 3 cols, >= 1080px tall for 3 rows)
-    if (screenHeight >= 1080 && maxCols >= 3 && maxRows >= 3) {
+    // 3x3 grid (reserved for ultra-wide and ultra-tall configurations)
+    if (screenWidth >= 1400 && screenHeight >= 1400 && maxCols >= 3 && maxRows >= 3) {
         layouts.push({
             id: 'grid-3x3',
             label: '3×3 Grid',
