@@ -236,10 +236,16 @@ export class SnapLayouter {
         this.layouts = [];
         /** @type {WindowStateRegistry} Global registry for snapped window states */
         this.registry = new WindowStateRegistry();
+        this.lastMousePosition = { x: 0, y: 0 };
         this.createOverlay();
 
         // Recalculate layouts on window resize
         window.addEventListener('resize', () => this.rebuildOverlay());
+
+        // Track mouse position globally for zone activation
+        document.addEventListener('mousemove', (e) => {
+            this.lastMousePosition = { x: e.clientX, y: e.clientY };
+        });
 
         // Track window closes to update registry
         this.setupCloseTracking();
@@ -317,10 +323,22 @@ export class SnapLayouter {
                 const z = document.createElement('div');
                 z.className = 'layout-zone';
                 z.dataset.zone = zone.id;
-                // Add hover listeners to zones
-                z.addEventListener('mouseenter', () => this.activateZone(layout.id, zone.id));
-                z.addEventListener('mouseleave', () => this.deactivateZone());
-                z.addEventListener('mouseup', (e) => this.onZoneDrop(e, layout.id, zone.id));
+
+                // Add hover listeners to zones (both mouse and pointer events for compatibility)
+                const activateHandler = () => this.activateZone(layout.id, zone.id);
+                const deactivateHandler = () => this.deactivateZone();
+                const dropHandler = (e) => this.onZoneDrop(e, layout.id, zone.id);
+
+                // Mouse events (for AppV1 and general compatibility)
+                z.addEventListener('mouseenter', activateHandler);
+                z.addEventListener('mouseleave', deactivateHandler);
+                z.addEventListener('mouseup', dropHandler);
+
+                // Pointer events (for AppV2 drag system)
+                z.addEventListener('pointerenter', activateHandler);
+                z.addEventListener('pointerleave', deactivateHandler);
+                z.addEventListener('pointerup', dropHandler);
+
                 opt.appendChild(z);
             });
 
@@ -337,9 +355,50 @@ export class SnapLayouter {
         this.buildLayoutOptions();
     }
 
+    /**
+     * Find which zone (if any) is at the given screen coordinates
+     * @param {number} x - Screen X coordinate
+     * @param {number} y - Screen Y coordinate
+     * @returns {Object|null} - {layoutId, zoneId} or null
+     */
+    findZoneAtPosition(x, y) {
+        const element = document.elementFromPoint(x, y);
+        if (!element) {
+            console.log('Window Maximizer | No element at position', x, y);
+            return null;
+        }
+
+        const zone = element.closest('.layout-zone');
+        if (!zone) {
+            console.log('Window Maximizer | Element not in a zone:', element.className);
+            return null;
+        }
+
+        const layoutOption = zone.closest('.layout-option');
+        if (!layoutOption) {
+            console.warn('Window Maximizer | Zone without layout option');
+            return null;
+        }
+
+        const result = {
+            layoutId: layoutOption.dataset.layout,
+            zoneId: zone.dataset.zone
+        };
+        console.log('Window Maximizer | Found zone at position:', result);
+        return result;
+    }
+
     show(app) {
         this.activeApp = app;
         this.overlay.classList.add('active');
+
+        // Activate zone under cursor if present (handles case where overlay appears under mouse)
+        setTimeout(() => {
+            const zoneInfo = this.findZoneAtPosition(this.lastMousePosition.x, this.lastMousePosition.y);
+            if (zoneInfo) {
+                this.activateZone(zoneInfo.layoutId, zoneInfo.zoneId);
+            }
+        }, 0);
     }
 
     hide() {
@@ -351,7 +410,7 @@ export class SnapLayouter {
 
     activateZone(layoutId, zoneId) {
         this.activeZone = { layoutId, zoneId };
-        
+
         // Calculate preview rectangle based on zone
         const rect = this.calculateZoneRect(layoutId, zoneId);
         if (rect) {
@@ -367,17 +426,24 @@ export class SnapLayouter {
         // Don't clear immediately to avoid flickering when moving between zones close together?
         // Actually, logic is simpler if we just let the next enter event handle it, 
         // but for now let's clear if we leave the zone completely.
-       // this.activeZone = null;
-       // this.highlight.style.display = 'none';
+        // this.activeZone = null;
+        // this.highlight.style.display = 'none';
     }
-    
+
     onZoneDrop(event, layoutId, zoneId) {
+        console.log('Window Maximizer | Zone drop triggered:', layoutId, zoneId, 'activeApp:', this.activeApp?.constructor?.name);
         event.stopPropagation(); // Prevent normal drag drop
-        if (!this.activeApp) return;
+        if (!this.activeApp) {
+            console.warn('Window Maximizer | No active app for zone drop');
+            return;
+        }
 
         const rect = this.calculateZoneRect(layoutId, zoneId);
         if (rect) {
+            console.log('Window Maximizer | Snapping to zone:', layoutId, zoneId, rect);
             this.snapApp(this.activeApp, rect, { layoutId, zoneId });
+        } else {
+            console.warn('Window Maximizer | Could not calculate rect for zone:', layoutId, zoneId);
         }
         this.hide();
     }
@@ -421,11 +487,58 @@ export class SnapLayouter {
      * @returns {boolean}
      */
     isAppV2(app) {
-        // ApplicationV2 has a different structure - check for typical V2 indicators
-        // V2 apps are in foundry.applications namespace and have different position handling
-        return app.constructor?.BASE_APPLICATION?.name === 'ApplicationV2' ||
-               app.constructor?.name?.endsWith('V2') ||
-               (typeof app.position === 'object' && 'left' in app.position && !('_original' in app.position));
+        if (!app) return false;
+
+        // Method 1: Check prototype chain - most reliable for V13+
+        // ApplicationV2 instances inherit from foundry.applications.api.ApplicationV2
+        if (typeof foundry !== 'undefined' &&
+            foundry.applications &&
+            foundry.applications.api &&
+            foundry.applications.api.ApplicationV2 &&
+            app instanceof foundry.applications.api.ApplicationV2) {
+            return true;
+        }
+
+        // Method 2: Check BASE_APPLICATION metadata (used by FoundryV11+)
+        // This is set on ApplicationV2 subclass constructors
+        if (app.constructor?.BASE_APPLICATION?.name === 'ApplicationV2') {
+            return true;
+        }
+
+        // Method 3: Check for V2-specific class naming convention
+        // Many third-party modules follow the "V2" suffix pattern
+        if (app.constructor?.name?.endsWith('V2')) {
+            // Additional check: V2 apps typically have a render method with specific signature
+            // and use direct HTMLElement for element property
+            const hasDirectElement = app.element instanceof HTMLElement;
+            const hasV2StyleHooks = app._onRenderFirst !== undefined ||
+                                    app._onRender !== undefined ||
+                                    typeof app.getPosition === 'function';
+            if (hasDirectElement || hasV2StyleHooks) {
+                return true;
+            }
+        }
+
+        // Method 4: Check foundry.applications.instances membership
+        // ApplicationV2 instances are registered in this global registry
+        if (foundry?.applications?.instances) {
+            // Try to find the app in the instances collection
+            for (const instance of foundry.applications.instances.values()) {
+                if (instance === app) {
+                    return true;
+                }
+            }
+        }
+
+        // Method 5: Negative check - explicitly exclude ApplicationV1
+        // ApplicationV1 apps have jQuery-wrapped elements and specific structure
+        if (app.element && !Array.isArray(app.element) &&
+            typeof app.element.jquery === 'string') {
+            // This is definitely a V1 app (jQuery object)
+            return false;
+        }
+
+        return false;
     }
 
     /**

@@ -2,6 +2,21 @@ import { SnapLayouter } from './snap-layouter.js';
 
 let layouter;
 
+// Register module settings
+Hooks.once('init', () => {
+    game.settings.register('window-maximizer', 'showMaximizeButton', {
+        name: 'Show Maximize Button',
+        hint: 'Display a maximize button in window headers (Application v2 only). Requires reload to take effect.',
+        scope: 'client',
+        config: true,
+        type: Boolean,
+        default: true,
+        onChange: () => {
+            ui.notifications.info('Window Maximizer | Reload required for button visibility changes to take effect');
+        }
+    });
+});
+
 Hooks.once('ready', () => {
     console.log('Window Maximizer | Ready Hook Fired');
     layouter = new SnapLayouter();
@@ -28,7 +43,10 @@ Hooks.on('getSceneControlButtons', (controls) => {
         button: true,
         visible: true,
         onClick: async () => {
-            if (!layouter) return;
+            if (!layouter) {
+                console.error('Window Maximizer | Layouter not initialized');
+                return;
+            }
 
             if (!layouter.hasSnappedWindows()) {
                 ui.notifications.info('No snapped windows to restore.');
@@ -69,6 +87,8 @@ Hooks.on('getApplicationHeaderButtons', (app, buttons) => {
         class: "window-maximizer-btn",
         icon: isSnapped ? "fas fa-window-restore" : "fas fa-window-maximize",
         onclick: (ev) => {
+            if (!layouter) return;
+
             if (app._windowMaximizerState) {
                 layouter.restoreApp(app);
             } else {
@@ -81,6 +101,9 @@ Hooks.on('getApplicationHeaderButtons', (app, buttons) => {
 // ApplicationV2 header controls hook (FoundryVTT v13+)
 // Note: This adds button to the dropdown menu. We also inject a visible button via renderApplicationV2.
 Hooks.on('getHeaderControlsApplicationV2', (app, controls) => {
+    // Check if button injection is enabled
+    if (!game.settings.get('window-maximizer', 'showMaximizeButton')) return;
+
     console.log('Window Maximizer | Adding button to AppV2 dropdown', app.constructor.name);
     // Check if we already have a maximize control
     if (controls.some(c => c.action === "windowMaximizerToggle")) return;
@@ -94,6 +117,8 @@ Hooks.on('getHeaderControlsApplicationV2', (app, controls) => {
         action: "windowMaximizerToggle",
         visible: true,
         onClick: (event) => {
+            if (!layouter) return;
+
             if (app._windowMaximizerState) {
                 layouter.restoreApp(app);
             } else {
@@ -106,6 +131,9 @@ Hooks.on('getHeaderControlsApplicationV2', (app, controls) => {
 // ApplicationV2 render hook - inject visible button directly into header
 // This ensures the button is always visible, not hidden in dropdown
 Hooks.on('renderApplicationV2', (app, html, options) => {
+    // Check if button injection is enabled
+    if (!game.settings.get('window-maximizer', 'showMaximizeButton')) return;
+
     // html is the jQuery wrapper or HTMLElement depending on version
     const element = html instanceof HTMLElement ? html : html[0];
     if (!element) return;
@@ -116,6 +144,20 @@ Hooks.on('renderApplicationV2', (app, html, options) => {
     // Find the header element - ApplicationV2 uses various structures
     const header = element.querySelector('header, .window-header');
     if (!header) return;
+
+    // Check if window is docked/minimized (sidebar windows)
+    // Docked windows should not have maximize button
+    const isDocked = element.classList.contains('docked') ||
+        element.classList.contains('minimized') ||
+        element.closest('.sidebar') !== null ||
+        element.closest('#sidebar') !== null ||
+        app.constructor.name.includes('Sidebar') ||
+        app.options?.popOut === false;
+
+    if (isDocked) {
+        console.log('Window Maximizer | Skipping docked window:', app.constructor.name);
+        return;
+    }
 
     // Check if window is currently snapped
     const isSnapped = !!app._windowMaximizerState;
@@ -133,6 +175,9 @@ Hooks.on('renderApplicationV2', (app, html, options) => {
     btn.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
+
+        if (!layouter) return;
+
         if (app._windowMaximizerState) {
             layouter.restoreApp(app);
         } else {
@@ -175,6 +220,8 @@ function patchDraggable() {
         const app = this.app;
         if (!app) return;
 
+        if (!layouter) return;
+
         // Check distance to top
         if (event.clientY < 10) {
             if (!layouter.activeApp) {
@@ -195,7 +242,7 @@ function patchDraggable() {
         // But the Draggable might capture the event first or stop propagation.
 
         // If layouter is active and has a zone, we want that to win.
-        if (layouter.activeApp && layouter.activeZone) {
+        if (layouter && layouter.activeApp && layouter.activeZone) {
             // We let the zone's event listener handle it if possible.
             // But if Draggable is on window, it captures globally.
 
@@ -208,7 +255,7 @@ function patchDraggable() {
         originalMouseUp.call(this, event);
 
         // Ensure hidden
-        if (layouter.activeApp && !layouter.activeZone) {
+        if (layouter && layouter.activeApp && !layouter.activeZone) {
             layouter.hide();
         }
     };
@@ -224,7 +271,8 @@ function setupAppV2DragTracking() {
     let isDragging = false;
     let startX = 0;
     let startY = 0;
-    const DRAG_THRESHOLD = 5; // Minimum pixels to consider it a drag
+    const DRAG_THRESHOLD = 3; // Minimum pixels to consider it a drag
+    let dragCheckInterval = null;
 
     // Track pointer down on AppV2 headers to detect drag start
     document.addEventListener('pointerdown', (event) => {
@@ -234,22 +282,25 @@ function setupAppV2DragTracking() {
         // Check if clicking on a header button/control - these should NOT trigger drag
         // This prevents drag detection when clicking close, maximize, or other header controls
         const isButton = event.target.closest('button, a, [data-action], .header-control, .header-button, .control, .close');
-        if (isButton) return;
+        if (isButton) {
+            console.log('Window Maximizer | Ignoring pointerdown on button:', event.target);
+            return;
+        }
 
         // Check if clicking on an AppV2 window header (drag handle)
         // Foundry V13 ApplicationV2 structure: <div class="application app-v2"><header>...</header>...</div>
-        // Also check for variations in class naming
-        const header = event.target.closest('.application.app-v2 header, .app-v2 header, [data-appid] header');
+        // Also check for variations in class naming and window-header class
+        const header = event.target.closest('header.window-header, .application header, .app-v2 header, [data-appid] header');
         if (!header) return;
 
         // Find the AppV2 application element
         const appElement = header.closest('.application, [data-appid]');
         if (!appElement) return;
 
-        // Get app ID from the element's dataset or from Foundry's application instances
+        // Get app ID from the element's dataset
         const appId = appElement.dataset?.appid;
 
-        // Find the actual app instance
+        // Find the actual app instance FIRST
         let foundApp = null;
 
         // Method 1: Look up by appId in foundry.applications.instances
@@ -269,14 +320,39 @@ function setupAppV2DragTracking() {
             }
         }
 
+        // NOW use the reliable isAppV2() method to verify
+        if (!foundApp || !layouter || !layouter.isAppV2(foundApp)) {
+            console.log('Window Maximizer | Not an AppV2 window or app not found, skipping');
+            return;
+        }
+
         if (foundApp) {
             draggingAppV2 = foundApp;
             isDragging = false;
             startX = event.clientX;
             startY = event.clientY;
-            console.log('Window Maximizer | AppV2 drag start detected:', foundApp.constructor.name);
+            console.log('Window Maximizer | AppV2 drag start detected:', foundApp.constructor.name, 'at', startX, startY);
+
+            // Start polling for position changes as a backup
+            // This helps catch drags even if pointer events don't fire reliably
+            dragCheckInterval = setInterval(() => {
+                if (draggingAppV2 && isDragging) {
+                    const appEl = draggingAppV2.element instanceof HTMLElement ?
+                        draggingAppV2.element : draggingAppV2.element?.[0];
+                    if (appEl) {
+                        const rect = appEl.getBoundingClientRect();
+                        // Check if window is near top edge
+                        if (rect.top < 10) {
+                            if (layouter && !layouter.activeApp) {
+                                console.log('Window Maximizer | Showing overlay (via interval check)');
+                                layouter.show(draggingAppV2);
+                            }
+                        }
+                    }
+                }
+            }, 50); // Check every 50ms
         }
-    }, true);
+    }, { capture: true, passive: true });
 
     // Track pointer movement to detect drag near top edge
     document.addEventListener('pointermove', (event) => {
@@ -289,6 +365,7 @@ function setupAppV2DragTracking() {
             const dy = Math.abs(event.clientY - startY);
             if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
                 isDragging = true;
+                console.log('Window Maximizer | Drag threshold exceeded, now tracking');
             } else {
                 return;
             }
@@ -296,38 +373,95 @@ function setupAppV2DragTracking() {
 
         // Check distance to top edge of viewport
         if (event.clientY < 10) {
-            if (!layouter.activeApp) {
+            if (layouter && !layouter.activeApp) {
+                console.log('Window Maximizer | Showing overlay at clientY:', event.clientY);
                 layouter.show(draggingAppV2);
             }
-        } else if (layouter.activeApp) {
+        } else if (layouter && layouter.activeApp) {
             // Hide overlay when mouse moves below the overlay area
             const overlayHeight = 250;
             if (event.clientY > overlayHeight) {
+                console.log('Window Maximizer | Hiding overlay at clientY:', event.clientY);
                 layouter.hide();
             }
+
+            // Manual zone tracking during drag
+            // During pointer drag, pointerenter events are not sent to zones
+            // So we need to manually check which zone is under the cursor
+            if (event.clientY <= overlayHeight) {
+                const zoneInfo = layouter.findZoneAtPosition(event.clientX, event.clientY);
+                if (zoneInfo) {
+                    // Check if zone changed to avoid redundant calls
+                    const currentZone = layouter.activeZone;
+                    if (!currentZone || currentZone.layoutId !== zoneInfo.layoutId || currentZone.zoneId !== zoneInfo.zoneId) {
+                        console.log('Window Maximizer | Hovering over zone:', zoneInfo);
+                        layouter.activateZone(zoneInfo.layoutId, zoneInfo.zoneId);
+                    }
+                } else {
+                    // Not over a zone, deactivate highlight
+                    if (layouter.activeZone) {
+                        layouter.activeZone = null;
+                        layouter.highlight.style.display = 'none';
+                    }
+                }
+            }
         }
-    }, true);
+    }, { capture: true, passive: true });
 
     // Track pointer up to end drag
     document.addEventListener('pointerup', (event) => {
         if (draggingAppV2) {
-            // Ensure overlay is hidden if we didn't select a zone
-            if (layouter.activeApp && !layouter.activeZone) {
+            console.log('Window Maximizer | AppV2 drag ended at', event.clientX, event.clientY);
+
+            // Check if we're over a zone using elementFromPoint
+            if (layouter && layouter.activeApp) {
+                const zoneInfo = layouter.findZoneAtPosition(event.clientX, event.clientY);
+                if (zoneInfo) {
+                    console.log('Window Maximizer | Pointer released over zone:', zoneInfo);
+                    const rect = layouter.calculateZoneRect(zoneInfo.layoutId, zoneInfo.zoneId);
+                    if (rect) {
+                        console.log('Window Maximizer | Snapping to zone:', zoneInfo.layoutId, zoneInfo.zoneId, rect);
+                        layouter.snapApp(layouter.activeApp, rect, zoneInfo);
+                    }
+                } else {
+                    console.log('Window Maximizer | Pointer not over a zone');
+                }
+            }
+
+            // Ensure overlay is hidden
+            if (layouter) {
                 layouter.hide();
             }
+
             draggingAppV2 = null;
             isDragging = false;
+
+            // Clear the interval
+            if (dragCheckInterval) {
+                clearInterval(dragCheckInterval);
+                dragCheckInterval = null;
+            }
         }
-    }, true);
+    }, { capture: true, passive: true });
 
     // Also clean up on pointer cancel
     document.addEventListener('pointercancel', () => {
         if (draggingAppV2) {
-            layouter.hide();
+            console.log('Window Maximizer | AppV2 drag cancelled');
+
+            if (layouter) {
+                layouter.hide();
+            }
             draggingAppV2 = null;
             isDragging = false;
+
+            // Clear the interval
+            if (dragCheckInterval) {
+                clearInterval(dragCheckInterval);
+                dragCheckInterval = null;
+            }
         }
-    }, true);
+    }, { capture: true, passive: true });
 
     console.log('Window Maximizer | AppV2 drag tracking setup complete');
 }
