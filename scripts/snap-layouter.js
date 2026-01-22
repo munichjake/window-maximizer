@@ -1152,11 +1152,10 @@ export class SnapLayouter {
                 icon.classList.add(newIcon);
             }
             // Update label text - AppV1 button structure: <a><i></i> Label</a>
-            // We need to preserve the icon and update the text node
-            const textNode = Array.from(appV1Btn.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
-            if (textNode) {
-                textNode.textContent = ` ${newLabel}`;
-            }
+            // Remove ALL existing text nodes and append new text to prevent accumulation
+            const textNodes = Array.from(appV1Btn.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
+            textNodes.forEach(node => node.remove());
+            appV1Btn.appendChild(document.createTextNode(` ${newLabel}`));
             return;
         }
 
@@ -1187,11 +1186,10 @@ export class SnapLayouter {
             if (labelEl) {
                 labelEl.textContent = newLabel;
             } else {
-                // Fallback: look for text node
-                const textNode = Array.from(appV2DropdownBtn.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
-                if (textNode) {
-                    textNode.textContent = newLabel;
-                }
+                // Fallback: remove ALL text nodes and append new text to prevent accumulation
+                const textNodes = Array.from(appV2DropdownBtn.childNodes).filter(node => node.nodeType === Node.TEXT_NODE);
+                textNodes.forEach(node => node.remove());
+                appV2DropdownBtn.appendChild(document.createTextNode(newLabel));
             }
         }
     }
