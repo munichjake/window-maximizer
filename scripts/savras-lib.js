@@ -223,7 +223,7 @@ export class SavrasLib {
       // Merge content: each message gets its own section, newest first
       const mergedContent = messages.map((m) => {
         const heading = messages.length > 1 ? `<h3 style="margin:0.5em 0 0.3em;">${this.#escapeHtml(m.title)}</h3>` : '';
-        return `${heading}<div>${m.content}</div>`;
+        return `${heading}<div>${this.#escapeHtml(m.content)}</div>`;
       }).join('<hr style="border:0; border-top:1px solid rgba(128,128,128,0.3); margin:0.8em 0;">');
 
       // Collect unique buttons across all messages (deduplicate by label+url)

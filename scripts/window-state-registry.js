@@ -20,6 +20,18 @@ function debugLog(...args) {
     }
 }
 
+/**
+ * Module-scoped per-instance key map.
+ * Ensures each Application instance gets a unique, stable key for the
+ * lifetime of the object — prevents collisions between multiple open
+ * sheets of the same class (e.g. two Actor sheets would otherwise share
+ * `app.id` / `app.constructor.name`).
+ * The WeakMap allows GC to reclaim entries once the app instance is gone.
+ * @type {WeakMap<object, string>}
+ */
+const _instanceKeys = new WeakMap();
+let _instanceCounter = 0;
+
 export class WindowStateRegistry {
     constructor() {
         /** @type {Map<string, WindowState>} */
@@ -27,13 +39,21 @@ export class WindowStateRegistry {
     }
 
     /**
-     * Generate a unique key for an application
+     * Generate a unique key for an application instance.
+     * Keys are cached per-instance via a WeakMap so repeated calls for the
+     * same app always return the same key, while different instances of the
+     * same class get distinct keys.
      * @param {Application|ApplicationV2} app
      * @returns {string}
      */
     getAppKey(app) {
-        // Use appId if available, otherwise use id or a generated key
-        return String(app.appId ?? app.id ?? app.constructor.name);
+        let key = _instanceKeys.get(app);
+        if (!key) {
+            const baseId = app.appId ?? app.id ?? app.constructor.name;
+            key = `${app.constructor.name}#${baseId}@${++_instanceCounter}`;
+            _instanceKeys.set(app, key);
+        }
+        return key;
     }
 
     /**
@@ -100,16 +120,27 @@ export class WindowStateRegistry {
     }
 
     /**
-     * Mark a window as closed (but keep its state for restore-all)
+     * Mark a window as closed (but keep its state for restore-all).
+     * If the window has no extractable document info (i.e. it cannot be
+     * re-opened programmatically), the entry is removed entirely instead
+     * of being kept around as an unrecoverable ghost.
      * @param {Application|ApplicationV2} app
      */
     markClosed(app) {
         const key = this.getAppKey(app);
         const state = this.states.get(key);
-        if (state) {
-            state.isOpen = false;
-            debugLog(`Marked ${key} as closed`);
+        if (!state) return;
+
+        // If we can't re-open this window later, there's no point in
+        // keeping the state around — drop it to avoid unbounded growth.
+        if (!state.documentInfo) {
+            this.states.delete(key);
+            debugLog(`Removed unrecoverable snap state for ${key}`);
+            return;
         }
+
+        state.isOpen = false;
+        debugLog(`Marked ${key} as closed`);
     }
 
     /**

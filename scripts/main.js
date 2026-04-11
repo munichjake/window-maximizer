@@ -171,7 +171,7 @@ Hooks.once('init', () => {
     });
 });
 
-Hooks.once('ready', () => {
+Hooks.once('ready', async () => {
     debugLog('Ready Hook Fired');
     layouter = new SnapLayouter();
 
@@ -185,8 +185,17 @@ Hooks.once('ready', () => {
     // Initialize local usage tracker and flush any buffered events to Savras.
     // Tracker init must happen after `ready` — it reads game.user/game.socket.
     tracker.init();
-    tracker.flushToSavras();
+    await tracker.flushToSavras();
 });
+
+// Clean up any tracked header-button listeners when an AppV2 window closes.
+// Without this, buttonListenersMap entries would only be freed via WeakMap GC,
+// which is non-deterministic. Explicit cleanup also guards against leaked
+// references in case consumers hold the app instance alive longer than expected.
+// Note: AppV1 does not use the tracked-button mechanism, so the v1 hook is a no-op
+// for apps that never had listeners registered.
+Hooks.on('closeApplicationV2', (app) => removeTrackedButtonListeners(app));
+Hooks.on('closeApplication', (app) => removeTrackedButtonListeners(app));
 
 // Add Restore All button to scene controls
 // Compatible with FoundryVTT v12 (array form) and v13+ (Record/object form).
@@ -327,8 +336,19 @@ Hooks.on('renderApplicationV2', (app, html, options) => {
     const element = html instanceof HTMLElement ? html : html[0];
     if (!element) return;
 
+    // Re-render handling: when Foundry re-renders an AppV2, it replaces the
+    // header HTML wholesale. Our previously injected button is gone from the
+    // DOM, but buttonListenersMap still holds a reference to the orphaned
+    // button element (and its handler). Detect that case and clear the stale
+    // entry before we inject a fresh button below — otherwise the WeakMap
+    // would keep accumulating dead entries for the lifetime of the app.
+    const existingButton = element.querySelector('.window-maximizer-appv2-btn');
+    if (!existingButton && buttonListenersMap.has(app)) {
+        removeTrackedButtonListeners(app);
+    }
+
     // Check if we already injected our button
-    if (element.querySelector('.window-maximizer-appv2-btn')) return;
+    if (existingButton) return;
 
     // Find the header element - ApplicationV2 uses various structures
     const header = element.querySelector('header, .window-header');

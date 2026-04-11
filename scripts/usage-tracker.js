@@ -137,10 +137,16 @@ export class UsageTracker {
         this.#save();
     }
 
+    // Stable identity key — survives socket serialize/deserialize round-trips
+    // where object identity would otherwise be lost.
+    #eventKey(ev) {
+        return `${ev.ts}|${ev.action}|${ev.userId ?? ''}`;
+    }
+
     // Remove exactly the events we snapshotted — anything that arrived mid-flush stays.
     #removeSent(sentEvents) {
-        const sentSet = new Set(sentEvents);
-        this.#buffer = this.#buffer.filter((ev) => !sentSet.has(ev));
+        const sentKeys = new Set(sentEvents.map((e) => this.#eventKey(e)));
+        this.#buffer = this.#buffer.filter((ev) => !sentKeys.has(this.#eventKey(ev)));
         this.#save();
     }
 
@@ -158,8 +164,9 @@ export class UsageTracker {
     #save() {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(this.#buffer));
-        } catch {
-            // Quota exceeded or storage disabled — drop silently.
+        } catch (err) {
+            // Quota exceeded, privacy mode, or storage disabled.
+            console.warn('Window Maximizer | UsageTracker save failed:', err);
         }
     }
 
@@ -169,6 +176,7 @@ export class UsageTracker {
 
     #forwardToGM() {
         if (this.#isGM || this.#buffer.length === 0) return;
+        if (!this.#telemetryEnabled()) return;
         const snapshot = this.#buffer.slice();
         try {
             game.socket.emit(SOCKET_NAME, { type: SOCKET_TYPE, events: snapshot });

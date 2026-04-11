@@ -389,9 +389,11 @@ export class SnapLayouter {
         });
 
         // Track mouse position globally for zone activation - using tracked listener
-        this.addTrackedListener(document, 'mousemove', (e) => {
-            this.lastMousePosition = { x: e.clientX, y: e.clientY };
-        });
+        for (const ev of ['mousemove', 'pointermove']) {
+            this.addTrackedListener(document, ev, (e) => {
+                this.lastMousePosition = { x: e.clientX, y: e.clientY };
+            });
+        }
 
         // Track window closes to update registry
         this.setupCloseTracking();
@@ -506,6 +508,11 @@ export class SnapLayouter {
             if (this.registry.getState(app)) {
                 this.registry.markClosed(app);
             }
+            // Registry state may be retained for restore-all, but the
+            // per-instance snap bookkeeping (original position, snap flag)
+            // is only meaningful while the window is alive — drop it so
+            // a re-opened instance starts fresh.
+            this.appStateMap.delete(app);
         });
 
         // AppV2 close hook
@@ -513,6 +520,7 @@ export class SnapLayouter {
             if (this.registry.getState(app)) {
                 this.registry.markClosed(app);
             }
+            this.appStateMap.delete(app);
         });
     }
 
@@ -796,11 +804,16 @@ export class SnapLayouter {
         const colSpan = zone.colSpan || 1;
         const rowSpan = zone.rowSpan || 1;
 
+        const colStart = Math.round(zone.col * colWidth);
+        const rowStart = Math.round(zone.row * rowHeight);
+        const colEnd   = Math.round((zone.col + colSpan) * colWidth);
+        const rowEnd   = Math.round((zone.row + rowSpan) * rowHeight);
+
         return {
-            x: zone.col * colWidth,
-            y: zone.row * rowHeight,
-            w: colWidth * colSpan,
-            h: rowHeight * rowSpan
+            x: colStart,
+            y: rowStart,
+            w: colEnd - colStart,
+            h: rowEnd - rowStart
         };
     }
 
@@ -907,10 +920,11 @@ export class SnapLayouter {
         };
 
         // Clamp rect to viewport bounds to prevent off-screen positioning
-        rect.x = Math.max(0, Math.min(rect.x, window.innerWidth - 100));
-        rect.y = Math.max(0, Math.min(rect.y, window.innerHeight - 100));
-        rect.w = Math.min(rect.w, window.innerWidth - rect.x);
-        rect.h = Math.min(rect.h, window.innerHeight - rect.y);
+        const MIN_VISIBLE = 200;
+        rect.x = Math.max(0, Math.min(rect.x, window.innerWidth - MIN_VISIBLE));
+        rect.y = Math.max(0, Math.min(rect.y, window.innerHeight - MIN_VISIBLE));
+        rect.w = Math.max(MIN_VISIBLE, Math.min(rect.w, window.innerWidth - rect.x));
+        rect.h = Math.max(MIN_VISIBLE, Math.min(rect.h, window.innerHeight - rect.y));
 
         // Store state in WeakMap to prevent global state pollution
         // This is the ONLY place we store snap state - no pollution of app object
