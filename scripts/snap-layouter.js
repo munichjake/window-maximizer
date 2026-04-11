@@ -752,7 +752,10 @@ export class SnapLayouter {
 
     onZoneDrop(event, layoutId, zoneId) {
         debugLog('Zone drop triggered:', layoutId, zoneId, 'activeApp:', this.activeApp?.constructor?.name);
-        event.stopPropagation(); // Prevent normal drag drop
+        // Do NOT stopPropagation here: Foundry's drag-end handlers (on window, bubble phase)
+        // must still fire to clean up their pointermove/mouseup listeners. Otherwise the
+        // window keeps following the mouse after snapping. snapApp() re-applies the snap
+        // position via requestAnimationFrame so Foundry's cleanup can't override it.
         if (!this.activeApp) {
             debugLog('No active app for zone drop');
             return;
@@ -923,19 +926,33 @@ export class SnapLayouter {
             this.registry.registerSnap(app, originalPosition, zoneInfo);
         }
 
+        const snapPosition = {
+            left: rect.x,
+            top: rect.y,
+            width: rect.w,
+            height: rect.h
+        };
+
         // Wrap setPosition in try-catch for error handling
         try {
-            app.setPosition({
-                left: rect.x,
-                top: rect.y,
-                width: rect.w,
-                height: rect.h
-            });
+            app.setPosition(snapPosition);
         } catch (error) {
             debugLog('Failed to set position:', error);
             ui.notifications?.error('Failed to maximize window');
             return;
         }
+
+        // Re-apply on the next frame so Foundry's drag-end cleanup (which may commit
+        // a cursor-based position after our handler) cannot override the snap.
+        requestAnimationFrame(() => {
+            try {
+                if (this.appStateMap.has(app) && typeof app.setPosition === 'function') {
+                    app.setPosition(snapPosition);
+                }
+            } catch (e) {
+                debugLog('Failed to re-apply snap position:', e);
+            }
+        });
 
         // End performance timer and record snap operation
         const snapDuration = this.performance.endTimer('snap');

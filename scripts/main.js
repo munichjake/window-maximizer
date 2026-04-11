@@ -1,4 +1,14 @@
 import { SnapLayouter } from './snap-layouter.js';
+import { SavrasLib } from './savras-lib.js';
+import { UsageTracker } from './usage-tracker.js';
+
+const telemetry = new SavrasLib({
+    moduleId: 'window-maximizer',
+    telemetryUrl: 'https://savras.dnd-session.de/api/v1/telemetry',
+    startupMessage: 'Window Maximizer | Savras telemetry active (opt-out in module settings)'
+});
+
+const tracker = new UsageTracker(telemetry);
 
 // Debug logging system - conditional console logging for performance
 // Uses FoundryVTT game setting for runtime configurability
@@ -171,16 +181,19 @@ Hooks.once('ready', () => {
 
     // Setup AppV2 drag tracking as a fallback/supplement
     setupAppV2DragTracking();
+
+    // Initialize local usage tracker and flush any buffered events to Savras.
+    // Tracker init must happen after `ready` — it reads game.user/game.socket.
+    tracker.init();
+    tracker.flushToSavras();
 });
 
 // Add Restore All button to scene controls
+// Compatible with FoundryVTT v12 (array form) and v13+ (Record/object form).
+// v12: controls is Array<SceneControl>, each with tools: SceneControlTool[]
+// v13+: controls is Record<string, SceneControl>, each with tools: Record<string, SceneControlTool>
 Hooks.on('getSceneControlButtons', (controls) => {
-    // Find the token controls group (first group, always present)
-    const tokenControls = controls.find(c => c.name === 'token');
-    if (!tokenControls) return;
-
-    // Add our restore-all button as a tool in the token controls
-    tokenControls.tools.push({
+    const restoreTool = {
         name: 'window-maximizer-restore-all',
         title: 'Restore All Windows',
         icon: 'fas fa-window-restore',
@@ -197,9 +210,9 @@ Hooks.on('getSceneControlButtons', (controls) => {
                 return;
             }
 
+            tracker.track('restore-all', { source: 'sceneControl' });
             const summary = await layouter.restoreAll();
 
-            // Build notification message based on what happened
             const parts = [];
             if (summary.restoredOpen > 0) {
                 parts.push(`${summary.restoredOpen} window(s) restored`);
@@ -214,7 +227,29 @@ Hooks.on('getSceneControlButtons', (controls) => {
                 ui.notifications.info(message);
             }
         }
-    });
+    };
+
+    // v12: controls is an Array
+    if (Array.isArray(controls)) {
+        const tokenControls = controls.find(c => c?.name === 'token');
+        if (!tokenControls || !Array.isArray(tokenControls.tools)) return;
+        if (tokenControls.tools.some(t => t?.name === restoreTool.name)) return;
+        tokenControls.tools.push(restoreTool);
+        return;
+    }
+
+    // v13+: controls is a Record keyed by control name
+    // The token layer key is "tokens" in v13+ (previously "token" in v12)
+    const tokenControl = controls?.tokens ?? controls?.token;
+    if (!tokenControl || !tokenControl.tools) return;
+
+    if (Array.isArray(tokenControl.tools)) {
+        if (tokenControl.tools.some(t => t?.name === restoreTool.name)) return;
+        tokenControl.tools.push(restoreTool);
+    } else if (typeof tokenControl.tools === 'object') {
+        if (tokenControl.tools[restoreTool.name]) return;
+        tokenControl.tools[restoreTool.name] = restoreTool;
+    }
 });
 
 // Legacy Application (AppV1) header buttons hook
@@ -234,23 +269,31 @@ Hooks.on('getApplicationHeaderButtons', (app, buttons) => {
             if (!layouter) return;
 
             if (layouter.appStateMap.has(app)) {
+                tracker.track('restore', { source: 'headerButton', appVersion: 'v1', appClass: app.constructor.name });
                 layouter.restoreApp(app);
             } else {
+                tracker.track('maximize', { source: 'headerButton', appVersion: 'v1', appClass: app.constructor.name });
                 layouter.snapApp(app, layouter.calculateZoneRect('full', 'full'));
             }
         }
     });
 });
 
-// ApplicationV2 header controls hook (FoundryVTT v13+)
+// ApplicationV2 header controls hook (FoundryVTT v12+)
 // Note: This adds button to the dropdown menu. We also inject a visible button via renderApplicationV2.
+// The hook signature has remained `(app, controls: ApplicationHeaderControlsEntry[])` across v12–v14,
+// though v14 unified property names (label, visible, onClick) which this code already uses.
 Hooks.on('getHeaderControlsApplicationV2', (app, controls) => {
     // Check if button injection is enabled
     if (!game.settings.get('window-maximizer', 'showMaximizeButton')) return;
 
+    // Defensive guard: in all known versions controls is an array, but bail out
+    // gracefully if Foundry ever changes the shape rather than throwing.
+    if (!Array.isArray(controls)) return;
+
     debugLog('Adding button to AppV2 dropdown', app.constructor.name);
     // Check if we already have a maximize control
-    if (controls.some(c => c.action === "windowMaximizerToggle")) return;
+    if (controls.some(c => c?.action === "windowMaximizerToggle")) return;
 
     // Check if window is currently snapped
     const isSnapped = layouter ? layouter.appStateMap.has(app) : false;
@@ -264,8 +307,10 @@ Hooks.on('getHeaderControlsApplicationV2', (app, controls) => {
             if (!layouter) return;
 
             if (layouter.appStateMap.has(app)) {
+                tracker.track('restore', { source: 'dropdownControl', appVersion: 'v2', appClass: app.constructor.name });
                 layouter.restoreApp(app);
             } else {
+                tracker.track('maximize', { source: 'dropdownControl', appVersion: 'v2', appClass: app.constructor.name });
                 layouter.snapApp(app, layouter.calculateZoneRect('full', 'full'));
             }
         }
@@ -324,8 +369,10 @@ Hooks.on('renderApplicationV2', (app, html, options) => {
         if (!layouter) return;
 
         if (layouter.appStateMap.has(app)) {
+            tracker.track('restore', { source: 'headerButton', appVersion: 'v2', appClass: app.constructor.name });
             layouter.restoreApp(app);
         } else {
+            tracker.track('maximize', { source: 'headerButton', appVersion: 'v2', appClass: app.constructor.name });
             layouter.snapApp(app, layouter.calculateZoneRect('full', 'full'));
         }
     };
@@ -350,24 +397,160 @@ Hooks.on('renderApplicationV2', (app, html, options) => {
     debugLog('Injected visible button to AppV2 header', app.constructor.name);
 });
 
+/**
+ * Windows 11-style unsnap on drag: restore a snapped/maximized window's size
+ * while keeping the cursor anchored to the title bar proportionally.
+ *
+ * Applied in-place during an active drag. The caller is responsible for
+ * updating any drag-handler state (e.g. Foundry Draggable's captured initial
+ * position/mouse) so subsequent movement is computed from the new baseline.
+ *
+ * @param {Application|ApplicationV2} app - The snapped window
+ * @param {{clientX:number, clientY:number}} event - The move event whose coords
+ *   should become the new anchor
+ * @returns {{left:number,top:number,width:number,height:number}|null} The new
+ *   position that was applied, or null if no unsnap happened.
+ */
+function unsnapForDrag(app, event) {
+    if (!app || !layouter) return null;
+    const state = layouter.appStateMap.get(app);
+    if (!state) return null;
+
+    const orig = state.originalPosition;
+    if (!orig || !Number.isFinite(orig.width) || !Number.isFinite(orig.height)) {
+        return null;
+    }
+
+    const current = app.position || {};
+    const curLeft = Number.isFinite(current.left) ? current.left : 0;
+    const curWidth = Number.isFinite(current.width) && current.width > 0
+        ? current.width : window.innerWidth;
+
+    // Cursor's horizontal ratio within the currently-snapped window
+    let ratioX = (event.clientX - curLeft) / curWidth;
+    if (!Number.isFinite(ratioX)) ratioX = 0.5;
+    ratioX = Math.max(0, Math.min(1, ratioX));
+
+    // Anchor cursor at the same horizontal ratio on the restored title bar.
+    // Keep the cursor ~15px below the top edge so it lands inside the header.
+    let newLeft = Math.round(event.clientX - ratioX * orig.width);
+    let newTop = Math.round(event.clientY - 15);
+
+    // Clamp to viewport so the restored window stays reachable
+    const maxLeft = Math.max(0, window.innerWidth - orig.width);
+    newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+    newTop = Math.max(0, Math.min(newTop, Math.max(0, window.innerHeight - 50)));
+
+    const newPos = {
+        left: newLeft,
+        top: newTop,
+        width: orig.width,
+        height: orig.height
+    };
+
+    try {
+        app.setPosition(newPos);
+    } catch (error) {
+        debugLog('unsnapForDrag: setPosition failed', error);
+        return null;
+    }
+
+    // Clear snap state so the window is considered "free" again
+    layouter.appStateMap.delete(app);
+    try { layouter.registry.removeState(app); } catch (e) { /* non-fatal */ }
+    try { layouter.updateHeaderButton(app); } catch (e) { /* non-fatal */ }
+
+    tracker.track('unsnap-drag', {
+        source: 'titleDrag',
+        appClass: app.constructor?.name
+    });
+
+    return newPos;
+}
+
+/**
+ * Rewrite a Foundry Draggable instance's captured drag state so that a
+ * repositioning mid-drag (via unsnapForDrag) doesn't cause subsequent mouse
+ * moves to snap the window back. Defensively updates all known field shapes
+ * across Foundry versions.
+ *
+ * @param {Object} draggable - The Draggable instance (`this` inside its methods)
+ * @param {{left:number,top:number,width:number,height:number}} newPos
+ * @param {{clientX:number,clientY:number}} event
+ */
+function resetDraggableState(draggable, newPos, event) {
+    if (!draggable) return;
+
+    // Captured starting app position: updated to the restored rect so that
+    // delta calculations use the new baseline.
+    if (draggable.position && typeof draggable.position === 'object') {
+        draggable.position.left = newPos.left;
+        draggable.position.top = newPos.top;
+        if ('width' in draggable.position) draggable.position.width = newPos.width;
+        if ('height' in draggable.position) draggable.position.height = newPos.height;
+    }
+
+    // Captured starting mouse coordinates: reset to current cursor so that
+    // the next move computes a near-zero delta.
+    const mouseFields = ['_initial', 'initial', '_mouseStart', 'mouseStart', '_startPosition'];
+    for (const key of mouseFields) {
+        const ref = draggable[key];
+        if (ref && typeof ref === 'object') {
+            if ('x' in ref) ref.x = event.clientX;
+            if ('y' in ref) ref.y = event.clientY;
+            if ('clientX' in ref) ref.clientX = event.clientX;
+            if ('clientY' in ref) ref.clientY = event.clientY;
+        }
+    }
+}
+
 function patchDraggable() {
-    if (!Draggable) {
-        console.error("Window Maximizer | Draggable class not found!");
+    // Resolve the Draggable class across Foundry versions.
+    // v12: exposed as the global `Draggable`
+    // v13+: relocated to foundry.applications.ux.Draggable (global alias still present in v13)
+    // v14: the bare global is expected to be removed; prefer the namespaced path
+    const DraggableClass =
+        (typeof foundry !== 'undefined' && foundry?.applications?.ux?.Draggable) ||
+        (typeof globalThis !== 'undefined' ? globalThis.Draggable : undefined);
+
+    if (!DraggableClass?.prototype) {
+        console.warn("Window Maximizer | Draggable class not found — AppV1 drag-to-top disabled. AppV2 drag tracking remains active.");
         return;
     }
-    const originalMouseMove = Draggable.prototype._onDragMouseMove;
-    const originalMouseUp = Draggable.prototype._onDragMouseUp;
 
-    Draggable.prototype._onDragMouseMove = function (event) {
-        // Call original first to move the window
+    const originalMouseMove = DraggableClass.prototype._onDragMouseMove;
+    const originalMouseUp = DraggableClass.prototype._onDragMouseUp;
+
+    if (typeof originalMouseMove !== 'function' || typeof originalMouseUp !== 'function') {
+        console.warn("Window Maximizer | Draggable.prototype._onDragMouseMove/_onDragMouseUp not found — AppV1 drag-to-top disabled.");
+        return;
+    }
+
+    DraggableClass.prototype._onDragMouseMove = function (event) {
+        const app = this.app;
+
+        // Windows 11-style unsnap: if we're starting to drag a snapped window,
+        // restore its original size under the cursor BEFORE the original handler
+        // runs, so the drag continues from the new, smaller rect. We only do
+        // this once per drag, gated by an instance flag that _onDragMouseUp
+        // clears.
+        if (app && layouter && !this._windowMaximizerUnsnapped
+            && layouter.appStateMap.has(app)) {
+            const newPos = unsnapForDrag(app, event);
+            if (newPos) {
+                this._windowMaximizerUnsnapped = true;
+                resetDraggableState(this, newPos, event);
+                // Skip the original move for this frame — the window was just
+                // repositioned by unsnapForDrag and running the original would
+                // apply a stale delta from the pre-unsnap baseline.
+                return;
+            }
+        }
+
+        // Call original to move the window
         originalMouseMove.call(this, event);
 
-        // Get the application being dragged
-        // ApplicationV1 uses this.app, ApplicationV2 might also use this.app
-        // In V13, Draggable constructor accepts both Application and ApplicationV2
-        const app = this.app;
         if (!app) return;
-
         if (!layouter) return;
 
         // Check distance to top
@@ -385,7 +568,7 @@ function patchDraggable() {
         }
     };
 
-    Draggable.prototype._onDragMouseUp = function (event) {
+    DraggableClass.prototype._onDragMouseUp = function (event) {
         // If we are over a zone, the zone mouseup handles it usually?
         // But the Draggable might capture the event first or stop propagation.
 
@@ -401,6 +584,9 @@ function patchDraggable() {
         }
 
         originalMouseUp.call(this, event);
+
+        // Reset the per-drag unsnap guard so the next drag can unsnap again.
+        this._windowMaximizerUnsnapped = false;
 
         // Ensure hidden
         if (layouter && layouter.activeApp && !layouter.activeZone) {
@@ -678,6 +864,12 @@ function setupAppV2DragTracking() {
                     const rect = layouter.calculateZoneRect(zoneInfo.layoutId, zoneInfo.zoneId);
                     if (rect) {
                         debugLog('Snapping to zone:', zoneInfo.layoutId, zoneInfo.zoneId, rect);
+                        tracker.track('snap-layout', {
+                            source: 'dragSnap',
+                            layoutId: zoneInfo.layoutId,
+                            zoneId: zoneInfo.zoneId,
+                            appClass: layouter.activeApp?.constructor?.name
+                        });
                         layouter.snapApp(layouter.activeApp, rect, zoneInfo);
                     }
                 } else {
