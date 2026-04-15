@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update module.json version and download URL
+        run: |
+          jq --arg ver "${{ steps.version.outputs.version }}" \
+             --arg dl "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/module.zip" \
+             '.version = $ver | .download = $dl' module.json > module.tmp.json
+          mv module.tmp.json module.json
+
+      - name: Create module.zip
+        run: |
+          zip -r module.zip \
+            module.json \
+            scripts/ \
+            styles/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            module.zip
+            module.json
+          generate_release_notes: true
+
+      - name: Notify FoundryVTT
+        uses: cs96and/FoundryVTT-release-package@v1
+        with:
+          package-token: ${{ secrets.FOUNDRY_PACKAGE_TOKEN }}
+          manifest-url: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/module.json

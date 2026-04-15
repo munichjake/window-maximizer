@@ -772,7 +772,7 @@ export class SnapLayouter {
         const rect = this.calculateZoneRect(layoutId, zoneId);
         if (rect) {
             debugLog('Snapping to zone:', layoutId, zoneId, rect);
-            this.snapApp(this.activeApp, rect, { layoutId, zoneId });
+            this.snapApp(this.activeApp, rect, { layoutId, zoneId }, 'overlayDrop');
         } else {
             debugLog('Could not calculate rect for zone:', layoutId, zoneId);
         }
@@ -894,7 +894,7 @@ export class SnapLayouter {
      * @param {Object} rect - The target rectangle {x, y, w, h}
      * @param {Object} [zoneInfo] - Zone info {layoutId, zoneId} for registry
      */
-    snapApp(app, rect, zoneInfo = { layoutId: 'full', zoneId: 'full' }) {
+    snapApp(app, rect, zoneInfo = { layoutId: 'full', zoneId: 'full' }, source = 'maximize') {
         // Validate app object before proceeding
         if (!app || !app.position || typeof app.setPosition !== 'function') {
             debugLog('Invalid app object provided to snapApp');
@@ -975,6 +975,13 @@ export class SnapLayouter {
         // Update header button to show restore icon
         // Use WeakMap check instead of polluting app object
         this.updateHeaderButton(app);
+
+        // Notify subscribers (telemetry) of the snap action with pattern info.
+        try {
+            Hooks.callAll('windowMaximizer.snap', { app, zoneInfo, source });
+        } catch (e) {
+            debugLog('snap hook listener threw', e);
+        }
     }
 
     /**

@@ -186,6 +186,20 @@ Hooks.once('ready', async () => {
     // Tracker init must happen after `ready` — it reads game.user/game.socket.
     tracker.init();
     await tracker.flushToSavras();
+
+    // Centralized snap-pattern telemetry. Fires from every snapApp() call site.
+    // Skip 'maximize' — the maximize button handlers already emit a 'maximize'
+    // event; re-tracking here would double-count and drown out the dragSnap /
+    // overlayDrop signal we care about for pattern usage.
+    Hooks.on('windowMaximizer.snap', ({ app, zoneInfo, source }) => {
+        if (source === 'maximize') return;
+        tracker.track('snap-layout', {
+            source,
+            layoutId: zoneInfo?.layoutId,
+            zoneId: zoneInfo?.zoneId,
+            appClass: app?.constructor?.name
+        });
+    });
 });
 
 // Clean up any tracked header-button listeners when an AppV2 window closes.
@@ -884,13 +898,7 @@ function setupAppV2DragTracking() {
                     const rect = layouter.calculateZoneRect(zoneInfo.layoutId, zoneInfo.zoneId);
                     if (rect) {
                         debugLog('Snapping to zone:', zoneInfo.layoutId, zoneInfo.zoneId, rect);
-                        tracker.track('snap-layout', {
-                            source: 'dragSnap',
-                            layoutId: zoneInfo.layoutId,
-                            zoneId: zoneInfo.zoneId,
-                            appClass: layouter.activeApp?.constructor?.name
-                        });
-                        layouter.snapApp(layouter.activeApp, rect, zoneInfo);
+                        layouter.snapApp(layouter.activeApp, rect, zoneInfo, 'dragSnap');
                     }
                 } else {
                     debugLog('Pointer not over a zone');
